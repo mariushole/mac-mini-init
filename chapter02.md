@@ -78,9 +78,64 @@ Is admin?: no
 Purpose: OpenClaw remote administration
 ```
 
-## 3. Add SSH Public-Key Login
+## 3. Add SSH Public-Key Login from GitHub
 
-On your laptop or administration machine, create a dedicated key if you do not already have one:
+Preferred pattern: fetch the public SSH keys already published on your GitHub account and install them for the local Mac user.
+
+GitHub exposes public SSH keys at:
+
+```bash
+curl https://github.com/<username>.keys
+```
+
+Example:
+
+```bash
+curl https://github.com/torvalds.keys
+```
+
+This returns public keys only. It does not expose private keys. It works only if the GitHub user has uploaded SSH keys to GitHub.
+
+On the Mac Mini, log in as the local user you want to SSH into, then run:
+
+```bash
+mkdir -p ~/.ssh
+chmod 700 ~/.ssh
+curl -fsSL https://github.com/<your-github-username>.keys >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+```
+
+For example, if the local SSH user is `openclaw`, log in locally as `openclaw` before running those commands.
+
+If you are setting this up from an admin account for another local user, use:
+
+```bash
+SSH_USER="openclaw"
+GITHUB_USER="<your-github-username>"
+
+sudo mkdir -p /Users/$SSH_USER/.ssh
+curl -fsSL https://github.com/$GITHUB_USER.keys | sudo tee -a /Users/$SSH_USER/.ssh/authorized_keys >/dev/null
+sudo chown -R $SSH_USER:staff /Users/$SSH_USER/.ssh
+sudo chmod 700 /Users/$SSH_USER/.ssh
+sudo chmod 600 /Users/$SSH_USER/.ssh/authorized_keys
+```
+
+Optionally save a copy for review before installing:
+
+```bash
+curl -fsSL https://github.com/<your-github-username>.keys > github-<your-github-username>.keys
+cat github-<your-github-username>.keys
+```
+
+From your client machine, test with:
+
+```bash
+ssh openclaw@<mac-mini-ip>
+```
+
+Replace `openclaw` with the real local username. SSH will use the matching private key from your client machine.
+
+Manual fallback: on your laptop or administration machine, create a dedicated key if you do not already have one:
 
 ```bash
 ssh-keygen -t ed25519 -a 100 -f ~/.ssh/macmini_openclaw_ed25519
@@ -109,7 +164,7 @@ sudo chmod 700 /Users/$SSH_USER/.ssh
 sudo chmod 600 /Users/$SSH_USER/.ssh/authorized_keys
 ```
 
-Do not put private keys in this repository.
+Do not put private keys in this repository. Do not blindly install keys from a GitHub account you do not control.
 
 ## 4. Enable Remote Login Only for That User
 
@@ -361,4 +416,3 @@ OpenClaw gateway later: localhost only, token auth, no public bind
 Previous: [Chapter 01 - First Boot and Initial macOS Setup](chapter01.md)  
 Next: [Chapter 03 - macOS Hardening](chapter03.md)  
 [Back to main guide](README.md)
-
