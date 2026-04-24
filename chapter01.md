@@ -251,10 +251,10 @@ Before continuing, verify:
 
 ## Next Step
 
-Continue to [Chapter 02 - Secure SSH Remote Access](chapter02.md).
+Continue to [Chapter 02 - Security Bootstrap](chapter02.md).
 
 ---
 
 Previous: [Main Guide](README.md)  
-Next: [Chapter 02 - Secure SSH Remote Access](chapter02.md)  
+Next: [Chapter 02 - Security Bootstrap](chapter02.md)
 [Back to main guide](README.md)

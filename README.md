@@ -9,9 +9,9 @@ This guide assumes the Mac Mini is dedicated to OpenClaw or mostly dedicated to 
 | Chapter | Status | Topic |
 | --- | --- | --- |
 | [01 - First Boot and Initial macOS Setup](chapter01.md) | Drafted | Unbox, initialize macOS, create the first admin user, and apply baseline security settings. |
-| [02 - Secure SSH Remote Access](chapter02.md) | Drafted | Harden the Mac Mini baseline and enable SSH for one local user, restricted to trusted LAN networks. |
-| [03 - macOS Hardening](chapter03.md) | Scaffold | Tighten sharing, firewall, FileVault, updates, accounts, and local access. |
-| [04 - Remote Administration](chapter04.md) | Scaffold | Set up SSH or screen sharing safely for maintenance. |
+| [02 - Security Bootstrap](chapter02.md) | Drafted | Turn on FileVault, firewall, stealth mode, updates, and create the non-admin operating user. |
+| [03 - SSH Remote Access](chapter03.md) | Drafted | Enable SSH from the local console, install GitHub public keys, restrict access, and troubleshoot lockouts. |
+| [04 - macOS Hardening](chapter04.md) | Scaffold | Tighten sharing, firewall, privacy, user, and update settings after SSH is working. |
 | [05 - OpenClaw Prerequisites](chapter05.md) | Scaffold | Install the package managers, runtimes, and system tools OpenClaw needs. |
 | [06 - OpenClaw Install](chapter06.md) | Scaffold | Install OpenClaw and keep its files, secrets, and logs organized. |
 | [07 - Home Network Access](chapter07.md) | Scaffold | Expose OpenClaw only where needed on the LAN, with DNS, TLS, or reverse proxy notes. |
@@ -41,9 +41,9 @@ Replace these examples with your own values as you work through the chapters:
 ## Progress Checklist
 
 - [ ] Chapter 01: Complete first boot and initial macOS setup.
-- [ ] Chapter 02: Reserve an IP address and decide the network placement.
-- [ ] Chapter 03: Apply macOS hardening.
-- [ ] Chapter 04: Configure remote administration.
+- [ ] Chapter 02: Apply the security bootstrap.
+- [ ] Chapter 03: Configure SSH remote access.
+- [ ] Chapter 04: Apply macOS hardening.
 - [ ] Chapter 05: Install prerequisites.
 - [ ] Chapter 06: Install OpenClaw.
 - [ ] Chapter 07: Configure LAN access.

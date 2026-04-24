@@ -1,43 +1,35 @@
 [Back to main guide](README.md)
 
-# Chapter 02 - Secure SSH Remote Access
+# Chapter 02 - Security Bootstrap
 
-This chapter prepares the Mac Mini for secure headless administration on the home network.
+This chapter sets the security baseline before SSH, OpenClaw, or any other network service is exposed.
 
-The target state is simple: FileVault on, macOS firewall on, stealth mode on, no internet port forwarding, and SSH enabled only for one chosen local user. Port 22 should be reachable only from trusted local networks.
+The goal is a Mac Mini that is encrypted, patched, quiet on the network, and not reachable from the internet. SSH setup comes next in [Chapter 03 - SSH Remote Access](chapter03.md).
 
-Apple documents that Remote Login enables SSH/SFTP and can be limited to "Only these users." Apple also documents that FileVault adds password-gated protection on Apple silicon, and that stealth mode prevents the Mac from answering probing requests such as unauthorized ICMP/ping. See the references at the end of this chapter.
+Apple notes that Apple silicon Macs are already hardware encrypted, but FileVault adds password-gated protection against access without the login password. Apple also documents that stealth mode stops the Mac from responding to probing requests such as unauthorized ICMP/ping.
 
-## 1. Confirm the Baseline
+## 1. Baseline Target State
 
-Before enabling SSH, confirm the Chapter 01 baseline:
+Before moving on, the Mac Mini should match this state:
 
-- [ ] FileVault is enabled.
-- [ ] The macOS firewall is enabled.
-- [ ] Automatic security updates are enabled.
-- [ ] No router port forward points to the Mac Mini.
-- [ ] Remote Management is off unless deliberately required.
-- [ ] Screen Sharing is off unless deliberately required.
-- [ ] You have local keyboard/display access while testing headless recovery.
+```text
+FileVault: ON
+macOS firewall: ON
+Stealth mode: ON
+Automatic security updates: ON
+Remote Login: OFF until Chapter 03
+Remote Management: OFF unless deliberately required
+Screen Sharing: OFF unless deliberately required
+Router port forwarding: none
+OpenClaw public exposure: none
+```
+
+## 2. Confirm FileVault
 
 Check FileVault:
 
 ```bash
 fdesetup status
-```
-
-Enable the macOS firewall and stealth mode:
-
-```bash
-sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate on
-sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setstealthmode on
-```
-
-Check the firewall state:
-
-```bash
-sudo /usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate
-sudo /usr/libexec/ApplicationFirewall/socketfilterfw --getstealthmode
 ```
 
 If FileVault is not enabled, use the GUI:
@@ -46,23 +38,100 @@ If FileVault is not enabled, use the GUI:
 System Settings -> Privacy & Security -> FileVault -> Turn On
 ```
 
-Store the recovery key outside the Mac Mini, preferably in a password manager plus a separate offline recovery record.
+Store the recovery key outside the Mac Mini. A password manager is appropriate, but keep a separate recovery plan in case your password manager is not available during an outage.
 
-## 2. Create or Choose the SSH User
+Record:
 
-Use a dedicated standard user for remote access. The examples use:
-
-```bash
-SSH_USER="openclaw"
+```text
+FileVault enabled:
+Recovery key stored where:
+Recovery tested or reviewed:
 ```
 
-Create the user in the GUI:
+## 3. Enable Firewall and Stealth Mode
+
+Enable the macOS firewall:
+
+```bash
+sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate on
+```
+
+Enable stealth mode:
+
+```bash
+sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setstealthmode on
+```
+
+Confirm both:
+
+```bash
+sudo /usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate
+sudo /usr/libexec/ApplicationFirewall/socketfilterfw --getstealthmode
+```
+
+Do not enable **Block all incoming connections** if you plan to use SSH in the next chapter. That setting can prevent Remote Login from working.
+
+## 4. Configure Automatic Updates
+
+Open:
+
+```text
+System Settings -> General -> Software Update
+```
+
+Recommended baseline:
+
+| Setting | Recommendation |
+| --- | --- |
+| Check for updates | On |
+| Download new updates when available | On |
+| Install Security Responses and system files | On |
+| Install macOS updates | Your choice |
+| Install application updates from the App Store | Your choice |
+
+For a service host, automatic security responses are usually worth enabling. Full macOS version upgrades are often better installed manually after checking OpenClaw compatibility.
+
+## 5. Disable Unneeded Sharing
+
+Open:
+
+```text
+System Settings -> General -> Sharing
+```
+
+Recommended initial state:
+
+| Service | State |
+| --- | --- |
+| Remote Login | Off until Chapter 03 |
+| Remote Management | Off |
+| Screen Sharing | Off unless needed for setup |
+| File Sharing | Off |
+| Media Sharing | Off |
+| Printer Sharing | Off |
+| AirDrop | Off |
+
+If you temporarily enable Screen Sharing while preparing the machine, document it and turn it off when finished.
+
+## 6. Create a Non-Admin Operating User
+
+OpenClaw and routine remote access should not run from the daily admin account.
+
+Create a standard user:
 
 ```text
 System Settings -> Users & Groups -> Add User -> Standard
 ```
 
-Do not make this user an administrator unless there is a clear operational need. Use the admin account from Chapter 01 for system maintenance, and use the standard `openclaw` user for routine remote access.
+Example:
+
+```text
+Full name: OpenClaw
+Account name: openclaw
+Account type: Standard
+```
+
+Keep the Chapter 01 admin account for maintenance tasks that require privilege. Use the standard `openclaw` user for routine operation unless a later chapter identifies a specific reason to do otherwise.
 
 List local short usernames:
 
@@ -70,349 +139,44 @@ List local short usernames:
 dscl . list /Users | grep -v '^_'
 ```
 
-Record the chosen user:
+Record:
 
 ```text
-SSH user:
-Is admin?: no
-Purpose: OpenClaw remote administration
+Admin user:
+Operating user:
+Operating user is admin?: no
 ```
 
-## 3. Add SSH Public-Key Login from GitHub
-
-Preferred pattern: fetch the public SSH keys already published on your GitHub account and install them for the local Mac user.
-
-GitHub exposes public SSH keys at:
-
-```bash
-curl https://github.com/<username>.keys
-```
-
-Example:
-
-```bash
-curl https://github.com/torvalds.keys
-```
-
-This returns public keys only. It does not expose private keys. It works only if the GitHub user has uploaded SSH keys to GitHub.
-
-On the Mac Mini, log in as the local user you want to SSH into, then run:
-
-```bash
-mkdir -p ~/.ssh
-chmod 700 ~/.ssh
-curl -fsSL https://github.com/<your-github-username>.keys >> ~/.ssh/authorized_keys
-chmod 600 ~/.ssh/authorized_keys
-```
-
-For example, if the local SSH user is `openclaw`, log in locally as `openclaw` before running those commands.
-
-If you are setting this up from an admin account for another local user, use:
-
-```bash
-SSH_USER="openclaw"
-GITHUB_USER="<your-github-username>"
-
-sudo mkdir -p /Users/$SSH_USER/.ssh
-curl -fsSL https://github.com/$GITHUB_USER.keys | sudo tee -a /Users/$SSH_USER/.ssh/authorized_keys >/dev/null
-sudo chown -R $SSH_USER:staff /Users/$SSH_USER/.ssh
-sudo chmod 700 /Users/$SSH_USER/.ssh
-sudo chmod 600 /Users/$SSH_USER/.ssh/authorized_keys
-```
-
-Optionally save a copy for review before installing:
-
-```bash
-curl -fsSL https://github.com/<your-github-username>.keys > github-<your-github-username>.keys
-cat github-<your-github-username>.keys
-```
-
-From your client machine, test with:
-
-```bash
-ssh openclaw@<mac-mini-ip>
-```
-
-Replace `openclaw` with the real local username. SSH will use the matching private key from your client machine.
-
-Manual fallback: on your laptop or administration machine, create a dedicated key if you do not already have one:
-
-```bash
-ssh-keygen -t ed25519 -a 100 -f ~/.ssh/macmini_openclaw_ed25519
-```
-
-Show the public key:
-
-```bash
-cat ~/.ssh/macmini_openclaw_ed25519.pub
-```
-
-On the Mac Mini, as an admin user:
-
-```bash
-SSH_USER="openclaw"
-
-sudo mkdir -p /Users/$SSH_USER/.ssh
-sudo nano /Users/$SSH_USER/.ssh/authorized_keys
-```
-
-Paste the public key into `authorized_keys`, then fix ownership and permissions:
-
-```bash
-sudo chown -R $SSH_USER:staff /Users/$SSH_USER/.ssh
-sudo chmod 700 /Users/$SSH_USER/.ssh
-sudo chmod 600 /Users/$SSH_USER/.ssh/authorized_keys
-```
-
-Do not put private keys in this repository. Do not blindly install keys from a GitHub account you do not control.
-
-## 4. Enable Remote Login Only for That User
-
-Use the GUI first, because it makes the access model visible:
-
-```text
-System Settings -> General -> Sharing -> Remote Login -> Info
-Remote Login: On
-Allow access for: Only these users
-Add: openclaw / your chosen user
-Allow full disk access for remote users: Off
-```
-
-The command-line equivalent is:
-
-```bash
-SSH_USER="openclaw"
-
-sudo dseditgroup -o create -q com.apple.access_ssh 2>/dev/null || true
-sudo dseditgroup -o edit -a "$SSH_USER" -t user com.apple.access_ssh
-sudo dseditgroup -o checkmember -m "$SSH_USER" com.apple.access_ssh
-
-sudo systemsetup -setremotelogin on
-```
-
-Check that SSH is listening:
-
-```bash
-sudo lsof -nP -iTCP:22 -sTCP:LISTEN
-```
-
-## 5. Harden SSH Server Config
-
-Back up the SSH daemon config:
-
-```bash
-sudo cp /etc/ssh/sshd_config /etc/ssh/sshd_config.backup.$(date +%Y%m%d-%H%M%S)
-```
-
-Edit the config:
-
-```bash
-sudo nano /etc/ssh/sshd_config
-```
-
-Add or set these lines near the end:
-
-```sshconfig
-PubkeyAuthentication yes
-PasswordAuthentication no
-KbdInteractiveAuthentication no
-ChallengeResponseAuthentication no
-PermitRootLogin no
-X11Forwarding no
-AllowTcpForwarding no
-PermitTunnel no
-StrictModes yes
-ClientAliveInterval 300
-ClientAliveCountMax 2
-LogLevel VERBOSE
-
-AllowUsers openclaw
-```
-
-Replace `openclaw` with the real SSH username.
-
-Restart SSH:
-
-```bash
-sudo launchctl kickstart -k system/com.openssh.sshd
-```
-
-From another machine on the LAN, test key-based login:
-
-```bash
-ssh -i ~/.ssh/macmini_openclaw_ed25519 openclaw@<mac-mini-ip>
-```
-
-Do not close your local console session until this test works.
-
-## 6. Restrict SSH to Trusted Local Networks with pf
-
-The macOS application firewall is useful, but it is not the right tool for subnet-based SSH restrictions. Use `pf` to limit port 22.
-
-For initial setup, this chapter allows SSH from RFC1918 private networks:
-
-```text
-10.0.0.0/8
-172.16.0.0/12
-192.168.0.0/16
-```
-
-Long term, replace those broad ranges with your actual management networks, such as `192.168.10.0/24` or a trusted lab VPN subnet. RFC1918 does not always mean trusted. A hotel, office, client site, or guest network may also use private address space.
-
-Create a `pf` anchor:
-
-```bash
-sudo tee /etc/pf.anchors/ssh-rfc1918 >/dev/null <<'EOF'
-# Allow SSH only from RFC1918/private networks.
-# Prefer replacing these broad ranges with your actual lab/home subnets if possible.
-
-table <ssh_rfc1918> persist { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 }
-
-pass in quick proto tcp from <ssh_rfc1918> to any port 22 keep state
-block drop in quick proto tcp from any to any port 22
-EOF
-```
-
-Back up `/etc/pf.conf` and load the anchor:
-
-```bash
-sudo cp /etc/pf.conf /etc/pf.conf.backup.$(date +%Y%m%d-%H%M%S)
-
-if ! grep -q 'ssh-rfc1918' /etc/pf.conf; then
-  printf '\nanchor "ssh-rfc1918"\nload anchor "ssh-rfc1918" from "/etc/pf.anchors/ssh-rfc1918"\n' | sudo tee -a /etc/pf.conf
-fi
-```
-
-Validate and enable:
-
-```bash
-sudo pfctl -n -f /etc/pf.conf
-sudo pfctl -f /etc/pf.conf
-sudo pfctl -e 2>/dev/null || true
-sudo pfctl -sr | grep -E 'ssh|22|rfc1918'
-```
-
-When you know the real trusted networks, tighten the table:
-
-```pf
-table <ssh_rfc1918> persist { 192.168.10.0/24, 10.20.30.0/24 }
-```
-
-## 7. Make pf Persistent After Reboot
-
-After a reboot, test whether the rule is active:
-
-```bash
-sudo pfctl -s info
-sudo pfctl -sr | grep -E 'ssh|22|rfc1918'
-```
-
-If the rule is not active after reboot, create a LaunchDaemon:
-
-```bash
-sudo tee /Library/LaunchDaemons/local.pf.load.plist >/dev/null <<'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
- "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-  <dict>
-    <key>Label</key>
-    <string>local.pf.load</string>
-    <key>ProgramArguments</key>
-    <array>
-      <string>/sbin/pfctl</string>
-      <string>-e</string>
-      <string>-f</string>
-      <string>/etc/pf.conf</string>
-    </array>
-    <key>RunAtLoad</key>
-    <true/>
-  </dict>
-</plist>
-EOF
-
-sudo chown root:wheel /Library/LaunchDaemons/local.pf.load.plist
-sudo chmod 644 /Library/LaunchDaemons/local.pf.load.plist
-sudo launchctl bootstrap system /Library/LaunchDaemons/local.pf.load.plist
-sudo launchctl kickstart -k system/local.pf.load
-```
-
-Reboot once while you still have physical access, then confirm the `pf` rule loads automatically.
-
-## 8. Verify Access and Denial
-
-Find the Mac Mini IP address:
-
-```bash
-ipconfig getifaddr en0
-ipconfig getifaddr en1
-```
-
-From an allowed LAN host:
-
-```bash
-ssh -i ~/.ssh/macmini_openclaw_ed25519 openclaw@<mac-mini-ip>
-```
-
-Check SSH logs:
-
-```bash
-log show --predicate 'process == "sshd"' --last 1h
-```
-
-Check `pf` rules and active states:
-
-```bash
-sudo pfctl -sr
-sudo pfctl -ss | grep ':22'
-```
-
-Also test from a network that should not be allowed if you have one available. The desired result is that port 22 is unreachable from untrusted networks.
-
-## 9. Headless FileVault Note
-
-On Apple silicon with macOS 26 or later, Apple says FileVault can be unlocked over SSH after restart if Remote Login is enabled and a network connection is available.
-
-Treat this as a feature to test, not an assumption. Verify it while the Mac Mini is still connected to a keyboard, display, and trusted network. Document whether it works on your exact hardware, macOS version, and router/switch setup.
-
-Record the result:
-
-```text
-macOS version:
-Remote Login enabled:
-FileVault unlock over SSH tested:
-Works after reboot?: yes/no
-Fallback local access plan:
-```
-
-## Least-Regret Final State
-
-Use this target state before moving on:
-
-```text
-FileVault: ON
-macOS firewall: ON
-Stealth mode: ON
-Remote Login: ON
-Remote Login users: Only openclaw / chosen user
-Remote full disk access: OFF
-SSH password auth: OFF
-SSH root login: OFF
-SSH key auth: ON
-pf: port 22 allowed only from actual trusted LAN subnets
-Router: no public port forward to Mac Mini
-OpenClaw gateway later: localhost only, token auth, no public bind
-```
+## 7. Confirm No Public Exposure
+
+On your router or firewall, confirm:
+
+- No public port forward points to the Mac Mini.
+- UPnP/NAT-PMP is not creating an unexpected inbound mapping.
+- The Mac Mini is on the intended LAN, VLAN, or services network.
+- Guest Wi-Fi clients cannot reach it unless that is intentional.
+
+Do not expose SSH or OpenClaw directly to the internet. If remote access is needed later, document a VPN or other deliberate remote-access design.
+
+## 8. Bootstrap Checklist
+
+- [ ] FileVault is enabled.
+- [ ] The FileVault recovery key is stored outside the Mac Mini.
+- [ ] macOS firewall is enabled.
+- [ ] Stealth mode is enabled.
+- [ ] Automatic security responses are enabled.
+- [ ] Unneeded sharing services are off.
+- [ ] A standard operating user exists.
+- [ ] The router has no public forwarding to the Mac Mini.
+- [ ] Physical console access is still available for SSH setup and testing.
 
 ## References
 
-- [Allow a remote computer to access your Mac - Apple Support](https://support.apple.com/en-kz/guide/mac-help/mchlp1066/mac)
 - [Protect data on your Mac with FileVault - Apple Support](https://support.apple.com/en-lb/guide/mac-help/mh11785/mac)
 - [Change Firewall settings on Mac - Apple Support](https://support.apple.com/en-om/guide/mac-help/mh11783/mac)
-- [Managing FileVault in macOS - Apple Platform Security](https://support.apple.com/fr-lu/guide/security/sec8447f5049/web)
 
 ---
 
 Previous: [Chapter 01 - First Boot and Initial macOS Setup](chapter01.md)  
-Next: [Chapter 03 - macOS Hardening](chapter03.md)  
+Next: [Chapter 03 - SSH Remote Access](chapter03.md)
 [Back to main guide](README.md)

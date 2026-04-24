@@ -13,7 +13,6 @@ Planned scope:
 
 ---
 
-Previous: [Chapter 04 - Remote Administration](chapter04.md)  
+Previous: [Chapter 04 - macOS Hardening](chapter04.md)
 Next: [Chapter 06 - OpenClaw Install](chapter06.md)  
 [Back to main guide](README.md)
-
