@@ -14,7 +14,6 @@ Planned scope:
 
 ---
 
-Previous: [Chapter 02 - Network Plan and Router Prep](chapter02.md)  
+Previous: [Chapter 02 - Secure SSH Remote Access](chapter02.md)  
 Next: [Chapter 04 - Remote Administration](chapter04.md)  
 [Back to main guide](README.md)
-

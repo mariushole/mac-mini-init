@@ -9,7 +9,7 @@ This guide assumes the Mac Mini is dedicated to OpenClaw or mostly dedicated to 
 | Chapter | Status | Topic |
 | --- | --- | --- |
 | [01 - First Boot and Initial macOS Setup](chapter01.md) | Drafted | Unbox, initialize macOS, create the first admin user, and apply baseline security settings. |
-| [02 - Network Plan and Router Prep](chapter02.md) | Scaffold | Decide where the Mac Mini lives on the home network before installing services. |
+| [02 - Secure SSH Remote Access](chapter02.md) | Drafted | Harden the Mac Mini baseline and enable SSH for one local user, restricted to trusted LAN networks. |
 | [03 - macOS Hardening](chapter03.md) | Scaffold | Tighten sharing, firewall, FileVault, updates, accounts, and local access. |
 | [04 - Remote Administration](chapter04.md) | Scaffold | Set up SSH or screen sharing safely for maintenance. |
 | [05 - OpenClaw Prerequisites](chapter05.md) | Scaffold | Install the package managers, runtimes, and system tools OpenClaw needs. |
@@ -48,4 +48,3 @@ Replace these examples with your own values as you work through the chapters:
 - [ ] Chapter 06: Install OpenClaw.
 - [ ] Chapter 07: Configure LAN access.
 - [ ] Chapter 08: Document backup and recovery.
-
