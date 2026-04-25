@@ -1,20 +1,20 @@
 [Back to main guide](README.md)
 
-# Chapter 06 - OpenClaw Install
+# Chapter 06 - OpenClaw Operations
 
 Scaffold chapter.
 
 Planned scope:
 
-- Install OpenClaw.
-- Run it under the intended account.
-- Configure startup behavior.
-- Keep secrets out of the repository.
-- Confirm the service binds only where intended.
+- Review day-2 commands for the gateway.
+- Update OpenClaw safely.
+- Restart and inspect the LaunchAgent.
+- Read logs and run health checks.
+- Document rollback and recovery steps.
 
 ---
 
-Previous: [Chapter 05 - OpenClaw Prerequisites](chapter05.md)  
+Previous: [Chapter 05 - OpenClaw Configuration and Channels](chapter05.md)
 Next: [Chapter 07 - Home Network Access](chapter07.md)  
 [Back to main guide](README.md)
 

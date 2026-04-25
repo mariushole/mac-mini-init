@@ -11,9 +11,9 @@ This guide assumes the Mac Mini is dedicated to OpenClaw or mostly dedicated to 
 | [01 - First Boot and Initial macOS Setup](chapter01.md) | Drafted | Unbox, initialize macOS, create the first admin user, and apply baseline security settings. |
 | [02 - Security Bootstrap](chapter02.md) | Drafted | Turn on FileVault, firewall, stealth mode, updates, and create the non-admin operating user. |
 | [03 - SSH Remote Access](chapter03.md) | Drafted | Enable SSH from the local console, install GitHub public keys, restrict access, and troubleshoot lockouts. |
-| [04 - macOS Hardening](chapter04.md) | Scaffold | Tighten sharing, firewall, privacy, user, and update settings after SSH is working. |
-| [05 - OpenClaw Prerequisites](chapter05.md) | Scaffold | Install the package managers, runtimes, and system tools OpenClaw needs. |
-| [06 - OpenClaw Install](chapter06.md) | Scaffold | Install OpenClaw and keep its files, secrets, and logs organized. |
+| [04 - Install OpenClaw over SSH](chapter04.md) | Drafted | Install OpenClaw as the non-admin operating user from SSH, using the admin account only for system tasks. |
+| [05 - OpenClaw Configuration and Channels](chapter05.md) | Scaffold | Configure models, secrets, channels, and safe DM policies. |
+| [06 - OpenClaw Operations](chapter06.md) | Scaffold | Maintain the gateway, logs, updates, health checks, and rollback notes. |
 | [07 - Home Network Access](chapter07.md) | Scaffold | Expose OpenClaw only where needed on the LAN, with DNS, TLS, or reverse proxy notes. |
 | [08 - Backup, Updates, and Recovery](chapter08.md) | Scaffold | Back up config, document restore steps, and maintain the host over time. |
 
@@ -43,8 +43,8 @@ Replace these examples with your own values as you work through the chapters:
 - [ ] Chapter 01: Complete first boot and initial macOS setup.
 - [ ] Chapter 02: Apply the security bootstrap.
 - [ ] Chapter 03: Configure SSH remote access.
-- [ ] Chapter 04: Apply macOS hardening.
-- [ ] Chapter 05: Install prerequisites.
-- [ ] Chapter 06: Install OpenClaw.
+- [ ] Chapter 04: Install OpenClaw over SSH.
+- [ ] Chapter 05: Configure OpenClaw models and channels.
+- [ ] Chapter 06: Document OpenClaw operations.
 - [ ] Chapter 07: Configure LAN access.
 - [ ] Chapter 08: Document backup and recovery.
