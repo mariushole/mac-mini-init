@@ -12,7 +12,7 @@ Assumptions:
 - Chapter 03 SSH access works with your GitHub public key.
 - You are connected over SSH.
 - You have a standard non-admin runtime user, for example `openclaw`.
-- You have a separate admin account, for example `mariushole`.
+- You have a separate admin account, for example `adminuser`.
 
 ## 1. Confirm the SSH Session
 
@@ -63,7 +63,7 @@ Recommended baseline:
 ```text
 Runtime user: openclaw
 Runtime user is admin: no
-Admin user: mariushole / your admin short name
+Admin user: adminuser
 ```
 
 ## 3. Use Admin Escalation Deliberately
@@ -86,10 +86,10 @@ su - adminuser
 exit
 ```
 
-Replace `adminuser` with the real admin short name, for example:
+Example:
 
 ```bash
-su - mariushole
+su - adminuser
 # run admin-only command
 exit
 ```
@@ -182,7 +182,7 @@ This means the Apple developer tools are missing and `xcode-select --install` ca
 First try the normal installer from the admin account:
 
 ```bash
-su - mariushole
+su - adminuser
 sudo xcode-select --install
 ```
 
@@ -228,7 +228,7 @@ whoami
 Expected:
 
 ```text
-openclaw / your runtime user
+openclaw
 ```
 
 ## 8. Force Public GitHub Dependencies over HTTPS
