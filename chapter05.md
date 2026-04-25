@@ -120,7 +120,13 @@ command -v brew || true
 
 If nothing is returned, Homebrew is not installed. For this guide, Homebrew is the preferred way to install Python 3.12 on Apple Silicon because it installs into `/opt/homebrew` and gives a repeatable CLI-managed Python path.
 
-Install Homebrew:
+Installing Homebrew is a system/package-manager bootstrap step. The non-admin `openclaw` runtime user may not have `sudo`, and that is expected. If the installer says the current user needs to be an Administrator, switch temporarily to the admin account:
+
+```bash
+su - adminuser
+```
+
+Install Homebrew from the admin shell:
 
 ```bash
 cd ~
@@ -128,7 +134,7 @@ cd ~
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 ```
 
-The Homebrew installer may ask for the user password to create or adjust `/opt/homebrew`. That is a system/package-manager bootstrap step, not an OpenClaw runtime step. After installation, normal `brew install` operations should run as the user. Do not run OpenClaw itself as admin/root.
+The Homebrew installer may ask for the admin user's password to create or adjust `/opt/homebrew`. That is a system/package-manager bootstrap step, not an OpenClaw runtime step.
 
 Set up the Apple Silicon shell environment:
 
@@ -137,15 +143,52 @@ echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
 eval "$(/opt/homebrew/bin/brew shellenv)"
 ```
 
-Verify:
+Install Python 3.12 while still in the admin shell:
+
+```bash
+brew install python@3.12
+```
+
+Verify Homebrew and Python from the admin shell:
 
 ```bash
 command -v brew
 brew --version
 brew doctor
+/opt/homebrew/bin/python3.12 --version
+/opt/homebrew/bin/python3.12 -c "import ssl; print(ssl.OPENSSL_VERSION)"
 ```
 
 `brew doctor` may print warnings. Document serious warnings, but do not chase unrelated cosmetic warnings during this chapter.
+
+Exit the admin shell immediately after the system/package-manager work is complete:
+
+```bash
+exit
+```
+
+Back as the runtime user, load Homebrew into the runtime user's shell and verify Python:
+
+```bash
+whoami
+echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
+eval "$(/opt/homebrew/bin/brew shellenv)"
+command -v brew
+/opt/homebrew/bin/python3.12 --version
+/opt/homebrew/bin/python3.12 -c "import ssl; print(ssl.OPENSSL_VERSION)"
+```
+
+Expected:
+
+```text
+whoami: openclaw or the chosen runtime user
+Python 3.12.x
+OpenSSL ...
+```
+
+After installation, normal `brew install` operations should run as the user when Homebrew permissions allow it. If the standard runtime user cannot install packages, do not make the runtime user an admin just to continue. Switch temporarily to `adminuser`, perform the system/package-manager task, then `exit` back to `openclaw`.
+
+Do not run OpenClaw itself as admin/root. Do not create the MLX-LM venv while still inside `su - adminuser`.
 
 If Homebrew installation is not allowed, use the official Python.org macOS installer as the alternative path.
 
@@ -167,15 +210,28 @@ Do not use `/usr/bin/python3` for the MLX-LM venv baseline unless explicitly acc
 
 ## 5. Install or Select Python 3.12
 
-If using Homebrew:
+First check whether Python 3.12 is already available:
 
 ```bash
-brew install python@3.12
+command -v brew
+test -x /opt/homebrew/bin/python3.12 && /opt/homebrew/bin/python3.12 --version
 ```
 
-Verify:
+If `/opt/homebrew/bin/python3.12` is missing and Homebrew is installed, install Python as a deliberate package-manager task. If the non-admin runtime user cannot run the install, switch temporarily to the admin account:
 
 ```bash
+su - adminuser
+eval "$(/opt/homebrew/bin/brew shellenv)"
+brew install python@3.12
+/opt/homebrew/bin/python3.12 --version
+/opt/homebrew/bin/python3.12 -c "import ssl; print(ssl.OPENSSL_VERSION)"
+exit
+```
+
+After exiting the admin shell, verify again as the runtime user:
+
+```bash
+whoami
 /opt/homebrew/bin/python3.12 --version
 /opt/homebrew/bin/python3.12 -c "import ssl; print(ssl.OPENSSL_VERSION)"
 ```
@@ -186,6 +242,8 @@ Expected:
 Python 3.12.x
 OpenSSL ...
 ```
+
+Expected `whoami` is `openclaw` or the chosen non-admin runtime user. Continue only after leaving the admin shell.
 
 Fallback selector if Python 3.12 is installed somewhere else:
 
