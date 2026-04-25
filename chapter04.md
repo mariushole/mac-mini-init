@@ -2,17 +2,17 @@
 
 # Chapter 04 - Prepare SSH and Headless Operations
 
-This chapter prepares the Mac Mini for a clean OpenClaw install over SSH. It stops before installing OpenClaw.
+This chapter prepares the Mac mini for a clean OpenClaw install over SSH. It stops before installing OpenClaw.
 
-The goal is to make sure the runtime user, admin escalation path, network, developer tools, Git, and GitHub dependency fetching are all clean before Chapter 05 starts.
+After this chapter is complete and SSH reconnect after reboot has been tested, the Mac mini may be moved to its permanent cabled/headless location.
 
 Assumptions:
 
 - Chapter 02 security bootstrap is complete.
 - Chapter 03 SSH access works with your GitHub public key.
 - You are connected over SSH.
-- You have a standard non-admin runtime user, for example `openclaw`.
-- You have a separate admin account, for example `adminuser`.
+- The OpenClaw runtime user is `openclaw` or another chosen non-admin user.
+- The admin user is `adminuser` or another known admin account.
 
 ## 1. Confirm the SSH Session
 
@@ -21,6 +21,8 @@ Run:
 ```bash
 whoami
 id
+id -Gn
+dseditgroup -o checkmember -m "$(whoami)" admin
 hostname
 pwd
 tty
@@ -30,52 +32,35 @@ echo "$SSH_CONNECTION"
 Expected:
 
 ```text
-whoami: openclaw / your chosen runtime user
+whoami: openclaw or the chosen non-admin runtime user
+id/id -Gn: user is not in the admin group
 pwd: /Users/openclaw or that user's home directory
 SSH_CONNECTION: not empty
 ```
+
+If the runtime user is in the `admin` group, stop and decide whether to create a cleaner standard user before continuing.
 
 Record:
 
 ```text
 SSH user:
 Runtime user:
+Runtime user is admin?: no
 Admin user:
 Mac hostname:
 Preparation date:
 ```
 
-## 2. Confirm the Runtime User Is Non-Admin
+## 2. Use Admin Escalation Deliberately
 
-The OpenClaw runtime user should be a standard user. OpenClaw files, config, secrets, and the LaunchAgent should belong to this user.
-
-Check group membership:
-
-```bash
-id
-groups
-```
-
-If the runtime user is in the `admin` group, stop and decide whether to create a cleaner standard user before continuing.
-
-Recommended baseline:
-
-```text
-Runtime user: openclaw
-Runtime user is admin: no
-Admin user: adminuser
-```
-
-## 3. Use Admin Escalation Deliberately
-
-Most commands in the next chapter should run as the non-admin runtime user.
+Most OpenClaw-related work should run as the non-admin runtime user.
 
 Use the admin account only for system-level tasks:
 
 - Installing Apple Xcode Command Line Tools.
-- Installing system package managers or system packages.
+- Installing system package managers or packages.
 - Changing firewall settings.
-- Rebooting the Mac Mini.
+- Rebooting the Mac mini.
 - Checking system-level launchd or security state.
 
 Pattern:
@@ -86,24 +71,15 @@ su - adminuser
 exit
 ```
 
-Example:
-
-```bash
-su - adminuser
-# run admin-only command
-exit
-```
-
-After leaving the admin shell, confirm you are back as the runtime user:
+Then verify return to the runtime user:
 
 ```bash
 whoami
-pwd
 ```
 
 Do not run the OpenClaw installer from inside the admin shell.
 
-## 4. Confirm Hostname, Shell, and Home Directory
+## 3. Confirm Hostname, Shell, Home, Network, and DNS
 
 Run:
 
@@ -112,45 +88,26 @@ scutil --get ComputerName
 scutil --get LocalHostName
 echo "$SHELL"
 dscl . -read /Users/"$(whoami)" UserShell NFSHomeDirectory
-pwd
-```
-
-Expected:
-
-```text
-ComputerName and LocalHostName match your setup notes.
-UserShell is a normal shell such as /bin/zsh or /bin/bash.
-NFSHomeDirectory points to /Users/<runtime-user>.
-```
-
-Fix account or hostname surprises before installing OpenClaw.
-
-## 5. Confirm Network, Route, DNS, and Internet
-
-Run:
-
-```bash
 ifconfig | awk '/^[a-z0-9]+:/{iface=$1} /inet / && $2!="127.0.0.1"{print iface, $2}'
-route -n get default | grep interface
-scutil --dns | sed -n '1,80p'
-ping -c 3 github.com
+route -n get default
 curl -fsSL https://openclaw.ai >/dev/null && echo "openclaw.ai reachable"
-curl -fsSL https://github.com >/dev/null && echo "github.com reachable"
 ```
 
-If these fail, fix DNS, routing, or firewall rules before continuing. Do not debug OpenClaw installer failures on top of a broken network.
+If `curl` cannot reach the internet, fix DNS, routing, or firewall rules before continuing. Do not debug OpenClaw installer failures on top of a broken network.
 
 Record:
 
 ```text
-Mac Mini IP:
-Default interface:
-DNS works:
-GitHub reachable:
+ComputerName:
+LocalHostName:
+Runtime shell:
+Home directory:
+Mac mini IP:
+Default route:
 openclaw.ai reachable:
 ```
 
-## 6. Verify Xcode Command Line Tools and Git
+## 4. Verify Xcode Command Line Tools and Git
 
 Check:
 
@@ -168,7 +125,7 @@ git version ...
 
 If both commands work, continue to the GitHub dependency rewrite section.
 
-## 7. Install Xcode Command Line Tools over SSH
+## 5. Install Xcode Command Line Tools over SSH
 
 If Git or developer tools are missing, macOS may print:
 
@@ -177,7 +134,7 @@ xcode-select: error: No developer tools were found and no install could be reque
 possibly because there is no active GUI session
 ```
 
-This means the Apple developer tools are missing and `xcode-select --install` cannot show the GUI prompt from the current headless SSH session.
+This means macOS developer tools are missing. `openclaw doctor` or npm/git dependency installation may trigger Git usage. `xcode-select --install` often needs a GUI prompt, so over SSH/headless use the `softwareupdate` method when the GUI prompt is unavailable.
 
 First try the normal installer from the admin account:
 
@@ -186,7 +143,7 @@ su - adminuser
 sudo xcode-select --install
 ```
 
-If a GUI prompt appears on the Mac Mini, complete it there. If no GUI prompt is available, use the headless `softwareupdate` method from the same admin shell:
+If a GUI prompt appears on the Mac mini, complete it there. If no GUI prompt is available, use the headless method from the same admin shell:
 
 ```bash
 sudo touch /tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
@@ -204,7 +161,7 @@ sudo rm -f /tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
 sudo xcode-select --switch /Library/Developer/CommandLineTools
 ```
 
-Verify while still in the admin shell:
+Verify:
 
 ```bash
 xcode-select -p
@@ -218,7 +175,7 @@ Expected:
 git version ...
 ```
 
-Return to the OpenClaw runtime user:
+Return to the runtime user:
 
 ```bash
 exit
@@ -231,7 +188,7 @@ Expected:
 openclaw
 ```
 
-## 8. Force Public GitHub Dependencies over HTTPS
+## 6. Force Public GitHub Dependencies over HTTPS
 
 Some npm dependencies may reference public GitHub repositories through SSH URLs, for example:
 
@@ -257,8 +214,79 @@ git ls-remote https://github.com/whiskeysockets/libsignal-node.git >/dev/null &&
 
 If this fails, fix GitHub HTTPS access before installing OpenClaw.
 
+## 7. Permission Model Overview
+
+The OpenClaw runtime directory should belong to the intended non-admin runtime user.
+
+Baseline:
+
+- `~/.openclaw` should belong to `openclaw` or the chosen runtime user.
+- The runtime user should not be in the macOS `admin` group.
+- OpenClaw should not be installed or run from the admin account.
+- The secure baseline is owner-only access to the OpenClaw config/runtime directory.
+
+Check:
+
+```bash
+whoami
+id -Gn
+ls -ld "$HOME"
+ls -ld "$HOME/.openclaw" 2>/dev/null || echo "~/.openclaw does not exist yet"
+```
+
+If `~/.openclaw` already exists, verify ownership:
+
+```bash
+stat -f "%Su %Sp %N" "$HOME/.openclaw"
+```
+
+Expected:
+
+```text
+owner: the OpenClaw runtime user
+permissions: owner-only or at least not group/world-readable
+```
+
+> **Permission Baseline: Why 700 Matters**
+>
+> `chmod 700 ~/.openclaw` means only the owning user can read, write, or enter the directory.
+>
+> This is desirable because the directory may contain OpenClaw config, gateway tokens, provider secrets, logs, runtime state, and `.env` files.
+>
+> It does not protect against the admin user, root, or malware already running as the same user.
+>
+> It is still the correct baseline for a single-operator Mac mini OpenClaw host.
+
+Permission baseline pros:
+
+- Prevents other local macOS users from reading OpenClaw config, tokens, logs, and runtime files.
+- Supports the single-operator, least-privilege model.
+- Reduces accidental exposure from loose default permissions.
+- Aligns with storing provider secrets outside the repository.
+
+Permission baseline cons:
+
+- Other non-admin users cannot inspect or share the OpenClaw directory.
+- Group-shared workflows will not work without deliberate design.
+- Backup, sync, or indexing tools running as another user may not access the directory.
+- It does not protect against the admin account, root, or compromise of the OpenClaw runtime user.
+- If OpenClaw was installed as the wrong user, tightening permissions protects the wrong user's directory.
+
+## 8. Session Store Model Overview
+
+OpenClaw uses local session/runtime state for the main agent under:
+
+```text
+~/.openclaw/agents/main/sessions
+```
+
+This is normal OpenClaw local state. It should be created under the non-admin runtime user, not under the admin account. It is not repository content and should not be committed to Git.
+
+Actual creation is handled in Chapter 05 during `openclaw doctor`.
+
 ## 9. What Not to Do Yet
 
+- Do not install OpenClaw yet.
 - Do not rerun the OpenClaw installer as the admin user.
 - Do not install the OpenClaw LaunchAgent yet.
 - Do not bind the OpenClaw gateway to `0.0.0.0`.
@@ -272,14 +300,21 @@ If this fails, fix GitHub HTTPS access before installing OpenClaw.
 - [ ] Runtime user is non-admin.
 - [ ] Admin user exists and works for system-level tasks.
 - [ ] Network, DNS, and internet access work.
-- [ ] Xcode Command Line Tools are installed.
+- [ ] Xcode Command Line Tools are installed or have a documented headless install path.
 - [ ] Git works.
 - [ ] GitHub public dependency fetch works over HTTPS.
-- [ ] You are back in the non-admin runtime account.
+- [ ] The user is back in the non-admin runtime account.
+- [ ] `~/.openclaw` permission model is understood.
+- [ ] Session store location is understood.
 - [ ] No OpenClaw LaunchAgent has been installed yet.
+- [ ] No OpenClaw gateway has been bound to `0.0.0.0`.
+- [ ] SSH reconnect after reboot has been tested.
+- [ ] Mac mini is ready to move to permanent cabled/headless location.
+
+After this chapter, the Mac mini may be moved to its permanent cabled/headless location, provided SSH reconnect after reboot has been tested.
 
 ---
 
 Previous: [Chapter 03 - SSH Remote Access](chapter03.md)
-Next: [Chapter 05 - Install and Configure OpenClaw](chapter05.md)
+Next: [Chapter 05 - Bootstrap OpenClaw Install and Doctor](chapter05.md)
 [Back to main guide](README.md)

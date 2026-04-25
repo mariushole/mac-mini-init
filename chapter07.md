@@ -14,6 +14,6 @@ Planned scope:
 
 ---
 
-Previous: [Chapter 06 - OpenClaw Operations](chapter06.md)
+Previous: [Chapter 06 - Configure OpenClaw Gateway, Providers, Channels, and Persistent Service](chapter06.md)
 Next: [Chapter 08 - Backup, Updates, and Recovery](chapter08.md)  
 [Back to main guide](README.md)
