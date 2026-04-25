@@ -96,6 +96,8 @@ python: preferably Python 3.11 or 3.12
 ssl: OpenSSL, not Apple LibreSSL, for the preferred baseline
 ```
 
+If `python3` is `/usr/bin/python3`, reports Python 3.9.x, and SSL reports LibreSSL, do not use it as the guide baseline for MLX-LM.
+
 The macOS system Python may be old, for example Python 3.9. A Python 3.9 venv can force older MLX-LM versions and trigger dependency backtracking.
 
 Apple/system Python may also be linked against LibreSSL, causing warnings such as:
@@ -108,7 +110,7 @@ This warning is not always fatal, but it is a poor baseline for a repeatable gui
 
 The recommended baseline is a modern user-owned Python, preferably Python 3.12. Do not use `sudo pip`.
 
-## 4. Install or Select Python 3.12
+## 4. Install Homebrew if Missing
 
 Check whether Homebrew is installed:
 
@@ -116,7 +118,56 @@ Check whether Homebrew is installed:
 command -v brew || true
 ```
 
-If Homebrew is installed:
+If nothing is returned, Homebrew is not installed. For this guide, Homebrew is the preferred way to install Python 3.12 on Apple Silicon because it installs into `/opt/homebrew` and gives a repeatable CLI-managed Python path.
+
+Install Homebrew:
+
+```bash
+cd ~
+
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+The Homebrew installer may ask for the user password to create or adjust `/opt/homebrew`. That is a system/package-manager bootstrap step, not an OpenClaw runtime step. After installation, normal `brew install` operations should run as the user. Do not run OpenClaw itself as admin/root.
+
+Set up the Apple Silicon shell environment:
+
+```bash
+echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
+eval "$(/opt/homebrew/bin/brew shellenv)"
+```
+
+Verify:
+
+```bash
+command -v brew
+brew --version
+brew doctor
+```
+
+`brew doctor` may print warnings. Document serious warnings, but do not chase unrelated cosmetic warnings during this chapter.
+
+If Homebrew installation is not allowed, use the official Python.org macOS installer as the alternative path.
+
+### Alternative: Python.org macOS Installer
+
+If Homebrew is not desired, install a current Python 3.12+ macOS installer from Python.org. Use the signed macOS installer package, then verify the installed Python path before creating the venv.
+
+Verify:
+
+```bash
+command -v python3.12 || true
+python3.12 --version || true
+python3.12 -c "import ssl; print(ssl.OPENSSL_VERSION)" || true
+```
+
+Prefer Homebrew for this guide because later CLI dependencies are easier to manage. Python.org is acceptable if Homebrew is not part of the host baseline.
+
+Do not use `/usr/bin/python3` for the MLX-LM venv baseline unless explicitly accepting a fallback/degraded path.
+
+## 5. Install or Select Python 3.12
+
+If using Homebrew:
 
 ```bash
 brew install python@3.12
@@ -136,7 +187,32 @@ Python 3.12.x
 OpenSSL ...
 ```
 
-If Homebrew is not installed, do not improvise with `sudo pip`. Either install Homebrew deliberately as a system prerequisite, use the official Python.org macOS installer, or defer Chapter 05 until a modern Python is available.
+Fallback selector if Python 3.12 is installed somewhere else:
+
+```bash
+command -v python3.12
+python3.12 --version
+python3.12 -c "import ssl; print(ssl.OPENSSL_VERSION)"
+```
+
+Select the Python binary:
+
+```bash
+if [ -x /opt/homebrew/bin/python3.12 ]; then
+  PYTHON_BIN="/opt/homebrew/bin/python3.12"
+elif command -v python3.12 >/dev/null 2>&1; then
+  PYTHON_BIN="$(command -v python3.12)"
+else
+  echo "Python 3.12 not found. Install Homebrew Python or Python.org Python before continuing."
+  exit 1
+fi
+
+echo "$PYTHON_BIN"
+"$PYTHON_BIN" --version
+"$PYTHON_BIN" -c "import ssl; print(ssl.OPENSSL_VERSION)"
+```
+
+This prevents accidentally creating the venv with `/usr/bin/python3`. The guide uses `$PYTHON_BIN` for venv creation.
 
 Keep this conservative:
 
@@ -144,7 +220,7 @@ Keep this conservative:
 - Do not require admin/root for Python package installation.
 - Python packages must be installed in a venv owned by the runtime user.
 
-## 5. Create the MLX-LM Virtual Environment
+## 6. Create the MLX-LM Virtual Environment
 
 Create the venv with Python 3.12:
 
@@ -152,7 +228,7 @@ Create the venv with Python 3.12:
 mkdir -p ~/local-llm
 cd ~/local-llm
 
-/opt/homebrew/bin/python3.12 -m venv .venv
+"$PYTHON_BIN" -m venv .venv
 source .venv/bin/activate
 
 python --version
@@ -197,7 +273,37 @@ command -v python
 command -v mlx_lm.generate
 ```
 
-## 6. Select and Record the Qwen 3.5 9B MLX Model
+## 7. Recover if the venv Was Created with System Python
+
+If the operator already created `~/local-llm/.venv` with `/usr/bin/python3`, Python 3.9, or LibreSSL, rebuild it.
+
+```bash
+deactivate 2>/dev/null || true
+
+cd ~/local-llm
+rm -rf .venv
+
+if [ -x /opt/homebrew/bin/python3.12 ]; then
+  PYTHON_BIN="/opt/homebrew/bin/python3.12"
+elif command -v python3.12 >/dev/null 2>&1; then
+  PYTHON_BIN="$(command -v python3.12)"
+else
+  echo "Python 3.12 not found. Install Homebrew Python or Python.org Python before continuing."
+  exit 1
+fi
+
+"$PYTHON_BIN" -m venv .venv
+source .venv/bin/activate
+
+python --version
+python -c "import ssl; print(ssl.OPENSSL_VERSION)"
+python -m pip install --upgrade pip
+python -m pip install mlx-lm
+```
+
+Do not keep debugging MLX-LM on the wrong venv. Rebuild the venv with the intended Python first.
+
+## 8. Select and Record the Qwen 3.5 9B MLX Model
 
 Set the model ID in a shell variable:
 
@@ -219,7 +325,9 @@ Why this model:
 - The model card states the basic usage path works with stock `mlx-lm`.
 - It is Apache-2.0 according to the model card.
 
-## 7. How This Guide Locates the Model
+Do not paste angle-bracket placeholders such as `<model-id>` into zsh. In zsh, `<...>` is treated as input redirection and causes `no such file or directory`.
+
+## 9. How This Guide Locates the Model
 
 - The default model ID is set explicitly in a shell variable.
 - The guide verifies the model with `huggingface_hub.model_info`.
@@ -257,7 +365,7 @@ echo "${HF_HOME:-$HOME/.cache/huggingface}"
 
 MLX-LM downloads model files through Hugging Face tooling. The model will normally be cached under `~/.cache/huggingface`. On a 256 GB Mac mini, keep the cache small and deliberate. Do not download several large models during first setup.
 
-## 8. What Went Wrong if zsh Says no such file or directory
+## 10. What Went Wrong if zsh Says no such file or directory
 
 > If `zsh` says `no such file or directory: mlx-compatible-qwen-3.5-9b-4bit-model-id`, you pasted an angle-bracket placeholder literally.
 
@@ -275,7 +383,7 @@ Then always call:
 mlx_lm.generate --model "$MODEL" --prompt "Reply with: local model ok"
 ```
 
-## 9. Check Resources Before Download
+## 11. Check Resources Before Download
 
 Before the generation test:
 
@@ -288,7 +396,7 @@ vm_stat
 
 First generation downloads the model and may take time.
 
-## 10. Run Local Generation Tests
+## 12. Run Local Generation Tests
 
 Minimal test:
 
@@ -332,7 +440,7 @@ mlx_lm.chat --model "$MODEL"
 
 Type a short prompt, verify response quality, then exit the chat REPL with `Ctrl-D` or the documented exit command. Do not make the chat REPL mandatory for automation.
 
-## 11. Check Resources After Download and Generation
+## 13. Check Resources After Download and Generation
 
 ```bash
 df -h /
@@ -352,26 +460,50 @@ Notes:
 - Watch for memory pressure and swap during tests.
 - If the Mac becomes sluggish or starts heavy swapping, stop and do not test larger models.
 
-## 12. Troubleshooting MLX-LM Install and First Model Run
+## 14. Troubleshooting MLX-LM Install and First Model Run
 
-Case 1: `zsh: no such file or directory` for a model placeholder.
+Case 1: `brew: command not found`.
 
 Cause:
 
-- You pasted an angle-bracket placeholder.
+```text
+Homebrew is not installed or not on PATH.
+```
 
 Fix:
 
 ```bash
-MODEL="mlx-community/Qwen3.5-9B-OptiQ-4bit"
-mlx_lm.generate --model "$MODEL" --prompt "Reply with: local model ok" --max-tokens 20
+cd ~
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
+eval "$(/opt/homebrew/bin/brew shellenv)"
+command -v brew
+brew --version
 ```
 
-Case 2: `NotOpenSSLWarning` / LibreSSL warning.
+Case 2: Python is `/usr/bin/python3`, Python 3.9, LibreSSL.
 
 Cause:
 
-- The venv was probably created with Apple/system Python.
+```text
+The host is using Apple's system Python.
+```
+
+Fix:
+
+```bash
+brew install python@3.12
+```
+
+Or use the Python.org installer, then rebuild `~/local-llm/.venv`.
+
+Case 3: `NotOpenSSLWarning` / LibreSSL warning.
+
+Cause:
+
+```text
+The venv was likely created with Apple/system Python linked against LibreSSL.
+```
 
 Fix:
 
@@ -386,19 +518,36 @@ python -m pip install --upgrade pip
 python -m pip install mlx-lm
 ```
 
-Case 3: pip backtracks across many `mlx-lm` versions.
+Case 4: pip backtracks through many `mlx-lm` versions.
 
 Cause:
 
-- Often caused by older Python compatibility constraints.
+```text
+Often caused by older Python compatibility constraints.
+```
 
 Fix:
 
-- Prefer Python 3.12.
-- Rebuild the venv.
-- Do not pin old MLX-LM unless there is a documented reason.
+```text
+Use Python 3.12 and rebuild the venv.
+```
 
-Case 4: Hugging Face download is slow or fails.
+Case 5: `zsh: no such file or directory: <model-id>`.
+
+Cause:
+
+```text
+An angle-bracket placeholder was pasted literally.
+```
+
+Fix:
+
+```bash
+MODEL="mlx-community/Qwen3.5-9B-OptiQ-4bit"
+mlx_lm.generate --model "$MODEL" --prompt "Reply with: local model ok" --max-tokens 20
+```
+
+Case 6: Hugging Face download is slow or fails.
 
 Fix:
 
@@ -412,7 +561,7 @@ PY
 
 Then retry generation.
 
-Case 5: Mac becomes unresponsive or swaps heavily.
+Case 7: Mac becomes unresponsive or swaps heavily.
 
 Fix:
 
@@ -421,7 +570,7 @@ Fix:
 - Consider a smaller model fallback.
 - Keep Chapter 05 baseline at Qwen 3.5 9B or smaller.
 
-## 13. Fallback if MLX-LM or Qwen 3.5 9B Setup Is Blocked
+## 15. Fallback if MLX-LM or Qwen 3.5 9B Setup Is Blocked
 
 Do not block the whole OpenClaw installation indefinitely.
 
@@ -447,7 +596,7 @@ ollama run qwen2.5:7b
 
 Ollama is a fallback provider/server path. MLX-LM proves Apple-native local inference. Do not confuse the two.
 
-## 14. Install Record
+## 16. Install Record
 
 Record:
 
@@ -458,6 +607,8 @@ Python executable:
 Python version:
 SSL library:
 Virtual environment path:
+Homebrew installed: yes/no
+Homebrew path:
 Hugging Face cache path:
 Model family: Qwen 3.5 9B
 Exact model ID: mlx-community/Qwen3.5-9B-OptiQ-4bit
@@ -474,9 +625,13 @@ Notes:
 ## End-of-Chapter Check
 
 - [ ] Runtime user is non-admin.
+- [ ] Homebrew presence was checked.
+- [ ] If missing, Homebrew was installed or Python.org Python was selected deliberately.
 - [ ] Python baseline was checked before venv creation.
 - [ ] Python 3.12 or another modern Python was selected deliberately.
+- [ ] `/usr/bin/python3` Python 3.9 + LibreSSL was not used as the guide baseline.
 - [ ] SSL backend is OpenSSL, not the Apple/system LibreSSL baseline.
+- [ ] Venv was rebuilt if it was accidentally created with system Python.
 - [ ] MLX-LM is installed in `~/local-llm/.venv`.
 - [ ] No Python packages were installed with `sudo`.
 - [ ] `mlx_lm.generate --help` works.
@@ -495,6 +650,8 @@ Notes:
 - [Best Local LLMs for Mac in 2026 - InsiderLLM](https://insiderllm.com/guides/best-local-llms-mac-2026/)
 - [MLX-LM on GitHub](https://github.com/ml-explore/mlx-lm)
 - [mlx-community/Qwen3.5-9B-OptiQ-4bit on Hugging Face](https://huggingface.co/mlx-community/Qwen3.5-9B-OptiQ-4bit)
+- [Homebrew installation documentation](https://docs.brew.sh/Installation)
+- [Python macOS downloads](https://www.python.org/downloads/macos/)
 
 ---
 
