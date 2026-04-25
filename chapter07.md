@@ -480,5 +480,5 @@ Notes:
 ---
 
 Previous: [Chapter 06 - Install and Bootstrap OpenClaw](chapter06.md)
-Next: [Chapter 08 - Home Network Access](chapter08.md)
+Next: [Chapter 08 - Telegram Bot Integration](chapter08.md)
 [Back to main guide](README.md)

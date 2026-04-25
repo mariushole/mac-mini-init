@@ -140,9 +140,9 @@ The local model runtime is a dependency for a clean OpenClaw operating setup, ev
 | [05 - Install Local LLM Runtime for Headless OpenClaw](chapter05.md) | Drafted | Install and test the local model runtime before OpenClaw provider onboarding, using MLX-LM and Qwen 3.5 9B as the April 2026 baseline for a Mac mini M4 with 16 GB unified memory. |
 | [06 - Install and Bootstrap OpenClaw](chapter06.md) | Drafted | Install OpenClaw as the non-admin runtime user, repair first-run doctor findings, set local/loopback/token gateway baseline, and verify local OpenClaw runtime state. |
 | [07 - Enable Local MLX-LM API Provider for OpenClaw](chapter07.md) | Drafted | Expose the local MLX-LM model through a loopback OpenAI-compatible API endpoint and configure OpenClaw to use it. |
-| [08 - Home Network Access](chapter08.md) | Scaffold | Expose OpenClaw only where needed on the LAN, with DNS, TLS, or reverse proxy notes. |
+| [08 - Telegram Bot Integration](chapter08.md) | Started | Create a Telegram bot, store its token securely, verify Bot API access, and prepare OpenClaw channel wiring without public exposure. |
 | [09 - Backup, Updates, and Recovery](chapter09.md) | Scaffold | Back up config, document restore steps, and maintain the host over time. |
-| [99 - Deferred Advanced Operations](chapter99.md) | Parking lot | Cloud provider secrets, device pairing, channels, broad audits, LaunchAgent policy, reboot checks, and update procedures. |
+| [99 - Deferred Advanced Operations](chapter99.md) | Parking lot | Cloud provider secrets, device pairing, channels, home network access, broad audits, LaunchAgent policy, reboot checks, and update procedures. |
 
 ## Security Principles
 
@@ -174,6 +174,6 @@ Replace these examples with your own values as you work through the chapters:
 - [ ] Chapter 05: Install and test the local LLM runtime.
 - [ ] Chapter 06: Bootstrap OpenClaw install and doctor.
 - [ ] Chapter 07: Enable the local MLX-LM API provider for OpenClaw.
-- [ ] Chapter 08: Configure LAN access.
+- [ ] Chapter 08: Start Telegram bot integration.
 - [ ] Chapter 09: Document backup and recovery.
 - [ ] Chapter 99: Review deferred advanced operations when needed.

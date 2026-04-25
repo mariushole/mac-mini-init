@@ -14,7 +14,6 @@ Planned scope:
 
 ---
 
-Previous: [Chapter 08 - Home Network Access](chapter08.md)
+Previous: [Chapter 08 - Telegram Bot Integration](chapter08.md)
 Next: [Main Guide](README.md)
 [Back to main guide](README.md)
-

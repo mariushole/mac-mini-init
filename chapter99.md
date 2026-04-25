@@ -82,6 +82,20 @@ Baseline posture:
 - Avoid broad channel exposure during first install.
 - Do not enable WhatsApp/pairing/OAuth-style channels until credential storage and channel security implications are understood.
 
+## Home Network Access
+
+Home network exposure is deferred until the local provider path and any channels are working safely.
+
+Planned scope:
+
+- Decide the local URL for OpenClaw.
+- Configure local DNS or mDNS.
+- Add firewall rules only for required ports.
+- Consider TLS for local access.
+- Avoid public exposure unless a later remote-access design is documented.
+
+Do not expose the MLX-LM API endpoint directly to the LAN. It should remain bound to `127.0.0.1`.
+
 ## Full Security Audit
 
 Run:
