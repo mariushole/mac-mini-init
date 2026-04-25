@@ -148,10 +148,81 @@ approved scopes [operator.read]
 
 This is not a gateway startup failure. The gateway can be healthy while a device/scope request is pending.
 
-List requests:
+List requests with a plain command. Do not copy the box-drawing characters from `doctor` output.
 
 ```bash
 openclaw devices list
+```
+
+If you accidentally paste output formatting, the shell may try to run a command named `│`:
+
+```text
+error: unknown command '│'
+zsh: command not found: │
+```
+
+Re-type the command manually:
+
+```bash
+openclaw devices list
+```
+
+What to inspect:
+
+- `Request`: the current approval request ID. Retry operations may create a new request ID.
+- `Device`: the requesting device or device fingerprint.
+- `Requested`: the roles/scopes the requester wants.
+- `Approved`: the roles/scopes it already has.
+- `IP`: the source IP if OpenClaw reports one.
+- `Age`: whether this appeared exactly when you ran `doctor`, `devices list`, or another local command.
+
+If `doctor` reports one request ID and `openclaw devices list` shows a different one, use the latest request ID from `openclaw devices list`.
+
+For a local-only setup, the most likely benign case is a local OpenClaw CLI or local agent requesting more scopes than it currently has. For example, a local fallback may show a paired device such as `gateway:doctor.memory.status` with only `operator.read`, while a pending request asks for pairing/admin/write scopes.
+
+Do not approve based only on "it is local." Approve only if all of these are true:
+
+- You just ran a command that would reasonably need that scope, such as `openclaw devices list`.
+- The gateway is still bound to loopback.
+- There is no public router port forward to OpenClaw.
+- The request age matches your action.
+- The requested scopes make sense for what you are trying to do.
+
+Check the gateway bind:
+
+```bash
+openclaw config get gateway.bind
+sudo lsof -nP -iTCP:18789 -sTCP:LISTEN
+```
+
+Expected:
+
+```text
+loopback
+OpenClaw listens on 127.0.0.1:18789 or another loopback address
+```
+
+If the runtime user cannot run `sudo`, use the admin account only for the `lsof` check:
+
+```bash
+su - adminuser
+sudo lsof -nP -iTCP:18789 -sTCP:LISTEN
+exit
+```
+
+Check active local connections while reproducing the request:
+
+```bash
+lsof -nP -iTCP:18789
+```
+
+Loopback connections such as `127.0.0.1` suggest local activity. A LAN address suggests another host or an SSH tunnel endpoint. An empty `IP` column in `openclaw devices list` is not proof by itself; use timing, gateway bind, logs, and active connections together.
+
+Check recent gateway logs if available:
+
+```bash
+tail -n 120 ~/.openclaw/logs/gateway.log 2>/dev/null || true
+log show --predicate 'process CONTAINS "openclaw"' --last 30m 2>/dev/null || true
 ```
 
 Approve only if expected and trusted:
