@@ -14,7 +14,6 @@ Planned scope:
 
 ---
 
-Previous: [Chapter 07 - Configure OpenClaw Gateway, Providers, Channels, Pairing, and Persistence](chapter07.md)
+Previous: [Chapter 07 - Enable Local MLX-LM API Provider for OpenClaw](chapter07.md)
 Next: [Chapter 09 - Backup, Updates, and Recovery](chapter09.md)
 [Back to main guide](README.md)
-

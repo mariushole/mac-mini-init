@@ -17,9 +17,9 @@ These are not the same.
 
 You can move the Mac mini to its permanent cabled/headless location after Chapter 04 is complete and verified.
 
-Chapter 05 makes local inference ready. Chapter 06 makes OpenClaw installed and doctor-repaired. Chapter 07 makes OpenClaw operational through gateway/provider/channel/persistence decisions.
+Chapter 05 makes local inference ready. Chapter 06 makes OpenClaw installed and doctor-repaired. Chapter 07 exposes the local MLX-LM model as a loopback API provider for OpenClaw.
 
-OpenClaw itself should not be considered fully appliance-style/headless after reboot until Chapter 07 persistent gateway behavior has been selected, configured, and tested.
+OpenClaw itself should not be considered fully appliance-style/headless after reboot until persistent gateway behavior has been selected, configured, and tested in the later operations chapters.
 
 | Phase / chapter | Local keyboard/mouse/monitor needed? | Can run over SSH? | Notes |
 | --- | ---: | ---: | --- |
@@ -35,7 +35,7 @@ OpenClaw itself should not be considered fully appliance-style/headless after re
 | Manual foreground gateway test | No | Yes | Run from SSH using `openclaw gateway --port 18789`. |
 | SSH tunnel test | No | Yes | Client workstation tunnels to Mac loopback gateway. |
 | Default user LaunchAgent install | Sometimes yes | Sometimes no | May fail over pure SSH with launchctl error 125 unless the runtime user has a GUI login session. |
-| Chapter 07 - Configure OpenClaw Gateway, Providers, Channels, Pairing, and Persistence | Sometimes | Mostly yes | Provider secrets, channels, audit, manual gateway, SSH tunnel are SSH-safe; LaunchAgent may require GUI login. |
+| Chapter 07 - Enable Local MLX-LM API Provider for OpenClaw | Sometimes | Mostly yes | Creates the local loopback MLX-LM API endpoint, optional user LaunchAgent, and OpenClaw local provider path. |
 | Custom LaunchDaemon/headless supervisor | No, after SSH works | Yes | Advanced only; not the default OpenClaw-shipped path. |
 
 ## When Can I Remove Keyboard, Mouse, and Monitor?
@@ -139,9 +139,10 @@ The local model runtime is a dependency for a clean OpenClaw operating setup, ev
 | [04 - Prepare SSH and Headless Operations](chapter04.md) | Drafted | Get the Mac mini ready to run permanently without keyboard/mouse/monitor and verify SSH, users, network, Git, and headless prerequisites. |
 | [05 - Install Local LLM Runtime for Headless OpenClaw](chapter05.md) | Drafted | Install and test the local model runtime before OpenClaw provider onboarding, using MLX-LM and Qwen 3.5 9B as the April 2026 baseline for a Mac mini M4 with 16 GB unified memory. |
 | [06 - Install and Bootstrap OpenClaw](chapter06.md) | Drafted | Install OpenClaw as the non-admin runtime user, repair first-run doctor findings, set local/loopback/token gateway baseline, and verify local OpenClaw runtime state. |
-| [07 - Configure OpenClaw Gateway, Providers, Channels, Pairing, and Persistence](chapter07.md) | Drafted | Configure provider integration, manual gateway test, SSH tunnel access, channel/pairing approval, security audit, and the chosen persistent gateway model. |
+| [07 - Enable Local MLX-LM API Provider for OpenClaw](chapter07.md) | Drafted | Expose the local MLX-LM model through a loopback OpenAI-compatible API endpoint and configure OpenClaw to use it. |
 | [08 - Home Network Access](chapter08.md) | Scaffold | Expose OpenClaw only where needed on the LAN, with DNS, TLS, or reverse proxy notes. |
 | [09 - Backup, Updates, and Recovery](chapter09.md) | Scaffold | Back up config, document restore steps, and maintain the host over time. |
+| [99 - Deferred Advanced Operations](chapter99.md) | Parking lot | Cloud provider secrets, device pairing, channels, broad audits, LaunchAgent policy, reboot checks, and update procedures. |
 
 ## Security Principles
 
@@ -172,6 +173,7 @@ Replace these examples with your own values as you work through the chapters:
 - [ ] Chapter 04: Prepare SSH and headless operations.
 - [ ] Chapter 05: Install and test the local LLM runtime.
 - [ ] Chapter 06: Bootstrap OpenClaw install and doctor.
-- [ ] Chapter 07: Configure OpenClaw gateway, providers, channels, pairing, and persistence.
+- [ ] Chapter 07: Enable the local MLX-LM API provider for OpenClaw.
 - [ ] Chapter 08: Configure LAN access.
 - [ ] Chapter 09: Document backup and recovery.
+- [ ] Chapter 99: Review deferred advanced operations when needed.

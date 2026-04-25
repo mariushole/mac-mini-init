@@ -8,7 +8,7 @@ This chapter is SSH-safe. It should not require keyboard/mouse/monitor unless an
 
 Chapter 06 installs OpenClaw as the non-admin runtime user, repairs first-run `openclaw doctor` findings, sets the local/loopback/token gateway baseline, and verifies local OpenClaw runtime state.
 
-Detailed provider integration, device pairing, channels, security audit, and persistent gateway behavior are handled in Chapter 07.
+Local MLX-LM provider integration is handled in Chapter 07. Cloud providers, device pairing, channels, broad audits, and later operational policy are parked in Chapter 99.
 
 Security baseline:
 
@@ -139,7 +139,7 @@ First-run `doctor` may ask several questions. Answer based on this table.
 | Skills missing requirements | Do not install everything blindly | Minimal secure installs should keep skills intentional. |
 | Plugins disabled | Usually no action | Disabled plugins are not automatically a problem; `Errors: 0` is the first-pass signal. |
 | Enable zsh completion | Yes only if useful | Convenience only; does not affect gateway security. |
-| Install gateway service now | Prefer not yet, unless GUI logged in as runtime user | Chapter 07 covers persistence. |
+| Install gateway service now | Prefer not yet, unless GUI logged in as runtime user | Later operations policy is parked in Chapter 99. |
 
 ## 5. Gateway Mode, Bind, and Token
 
@@ -246,7 +246,7 @@ No channel security warnings detected.
 Run: openclaw security audit --deep
 ```
 
-This is a basic channel-security signal only. It does not mean the whole host is secure. The deeper audit is covered in Chapter 07.
+This is a basic channel-security signal only. It does not mean the whole host is secure. The deeper audit is parked in Chapter 99.
 
 Doctor may also report skills and plugin counts, such as:
 
@@ -302,7 +302,7 @@ Shell completion is convenience only and does not affect gateway security.
 
 If the installed OpenClaw version has a supported MLX/MLX-LM provider path, configure it according to OpenClaw's current provider documentation.
 
-If not, use Chapter 07 to select a deliberate local provider endpoint such as Ollama fallback, LM Studio, or another supported local server.
+If not, use Chapter 07 to configure the local MLX-LM API endpoint, or park alternative provider decisions for later operations.
 
 Do not confuse the Chapter 05 MLX-LM test with a completed OpenClaw provider integration.
 
@@ -338,7 +338,7 @@ openclaw config set gateway.bind loopback
 openclaw doctor
 ```
 
-Detailed provider integration, device pairing, channels, security audit, and persistent gateway behavior are handled in Chapter 07.
+Local MLX-LM provider integration is handled in Chapter 07. Device pairing, channels, broad audits, and later gateway persistence policy are parked in Chapter 99.
 
 ## End-of-Chapter Check
 
@@ -369,5 +369,5 @@ Detailed provider integration, device pairing, channels, security audit, and per
 ---
 
 Previous: [Chapter 05 - Install Local LLM Runtime for Headless OpenClaw](chapter05.md)
-Next: [Chapter 07 - Configure OpenClaw Gateway, Providers, Channels, Pairing, and Persistence](chapter07.md)
+Next: [Chapter 07 - Enable Local MLX-LM API Provider for OpenClaw](chapter07.md)
 [Back to main guide](README.md)
