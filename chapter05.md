@@ -307,6 +307,26 @@ Guard:
 test "$VIRTUAL_ENV" = "$HOME/local-llm/.venv" && echo "venv ok"
 ```
 
+Hard stop if the active venv is wrong:
+
+```bash
+python - <<'PY'
+import ssl
+import sys
+
+print("python:", sys.version.split()[0])
+print("ssl:", ssl.OPENSSL_VERSION)
+
+if sys.version_info < (3, 11):
+    raise SystemExit("Stop: this venv is too old for the guide baseline. Rebuild it with Python 3.12.")
+
+if "LibreSSL" in ssl.OPENSSL_VERSION:
+    raise SystemExit("Stop: this venv uses LibreSSL. Rebuild it with Python 3.12 from Homebrew or Python.org.")
+PY
+```
+
+Do not continue to Hugging Face metadata checks or model generation if this hard stop fails. A venv can appear active and still be the wrong venv if it was created earlier with `/usr/bin/python3`.
+
 Install MLX-LM:
 
 ```bash
@@ -359,7 +379,16 @@ python -m pip install --upgrade pip
 python -m pip install mlx-lm
 ```
 
-Do not keep debugging MLX-LM on the wrong venv. Rebuild the venv with the intended Python first.
+Verify the rebuilt venv before continuing:
+
+```bash
+python --version
+python -c "import ssl; print(ssl.OPENSSL_VERSION)"
+python -m pip show mlx-lm
+mlx_lm.generate --help | head -n 20
+```
+
+Do not keep debugging MLX-LM on the wrong venv. Rebuild the venv with the intended Python first. If the path contains `.venv/lib/python3.9`, the venv is still wrong.
 
 ## 8. Select and Record the Qwen 3.5 9B MLX Model
 
@@ -414,6 +443,8 @@ PY
 If the Hugging Face metadata check fails, do not assume the model is unavailable. Check network/DNS first, then open the model URL manually from another machine if needed.
 
 Record the exact model ID and, if available, the resolved commit SHA in the install record. This makes the local LLM baseline reproducible later.
+
+If the metadata check succeeds but prints `NotOpenSSLWarning`, stop before generation and rebuild the venv. That warning means the active venv is still using Apple/system Python or another LibreSSL-linked Python, even if the model metadata can be fetched.
 
 Check the Hugging Face cache path:
 
@@ -531,12 +562,23 @@ Homebrew is not installed or not on PATH.
 Fix:
 
 ```bash
+su - adminuser
 cd ~
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
 eval "$(/opt/homebrew/bin/brew shellenv)"
 command -v brew
 brew --version
+exit
+```
+
+Back as the runtime user:
+
+```bash
+whoami
+echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
+eval "$(/opt/homebrew/bin/brew shellenv)"
+command -v brew
 ```
 
 Case 2: Python is `/usr/bin/python3`, Python 3.9, LibreSSL.
@@ -550,10 +592,14 @@ The host is using Apple's system Python.
 Fix:
 
 ```bash
+su - adminuser
+eval "$(/opt/homebrew/bin/brew shellenv)"
 brew install python@3.12
+/opt/homebrew/bin/python3.12 --version
+exit
 ```
 
-Or use the Python.org installer, then rebuild `~/local-llm/.venv`.
+Back as the runtime user, verify `/opt/homebrew/bin/python3.12`, then rebuild `~/local-llm/.venv`. Or use the Python.org installer, then rebuild `~/local-llm/.venv`.
 
 Case 3: `NotOpenSSLWarning` / LibreSSL warning.
 
@@ -569,8 +615,15 @@ Fix:
 deactivate 2>/dev/null || true
 rm -rf ~/local-llm/.venv
 cd ~/local-llm
+
+if [ ! -x /opt/homebrew/bin/python3.12 ]; then
+  echo "Python 3.12 is missing. Install it first, using su - adminuser if Homebrew needs admin rights."
+  exit 1
+fi
+
 /opt/homebrew/bin/python3.12 -m venv .venv
 source .venv/bin/activate
+python --version
 python -c "import ssl; print(ssl.OPENSSL_VERSION)"
 python -m pip install --upgrade pip
 python -m pip install mlx-lm
@@ -605,7 +658,41 @@ MODEL="mlx-community/Qwen3.5-9B-OptiQ-4bit"
 mlx_lm.generate --model "$MODEL" --prompt "Reply with: local model ok" --max-tokens 20
 ```
 
-Case 6: Hugging Face download is slow or fails.
+Case 6: `ValueError: Model type qwen3_5 not supported`.
+
+Cause:
+
+```text
+The model downloaded, but the installed mlx-lm package does not support Qwen 3.5. This commonly happens when the venv was created with Apple/system Python 3.9, causing pip to install an older compatible mlx-lm version.
+```
+
+Confirm:
+
+```bash
+python --version
+python -c "import ssl; print(ssl.OPENSSL_VERSION)"
+python -m pip show mlx-lm
+```
+
+If Python is `3.9.x`, SSL is `LibreSSL`, or the venv path contains `.venv/lib/python3.9`, rebuild the venv with Python 3.12 before trying the model again.
+
+Fix:
+
+```bash
+deactivate 2>/dev/null || true
+rm -rf ~/local-llm/.venv
+cd ~/local-llm
+/opt/homebrew/bin/python3.12 -m venv .venv
+source .venv/bin/activate
+python --version
+python -c "import ssl; print(ssl.OPENSSL_VERSION)"
+python -m pip install --upgrade pip
+python -m pip install mlx-lm
+MODEL="mlx-community/Qwen3.5-9B-OptiQ-4bit"
+mlx_lm.generate --model "$MODEL" --prompt "Reply with: local model ok" --max-tokens 20
+```
+
+Case 7: Hugging Face download is slow or fails.
 
 Fix:
 
@@ -619,7 +706,7 @@ PY
 
 Then retry generation.
 
-Case 7: Mac becomes unresponsive or swaps heavily.
+Case 8: Mac becomes unresponsive or swaps heavily.
 
 Fix:
 
@@ -685,10 +772,13 @@ Notes:
 - [ ] Runtime user is non-admin.
 - [ ] Homebrew presence was checked.
 - [ ] If missing, Homebrew was installed or Python.org Python was selected deliberately.
+- [ ] Any Homebrew/Python package-manager work that required admin rights was done through temporary `su - adminuser`.
+- [ ] The admin shell was exited before venv creation, MLX-LM install, metadata checks, or model generation.
 - [ ] Python baseline was checked before venv creation.
 - [ ] Python 3.12 or another modern Python was selected deliberately.
 - [ ] `/usr/bin/python3` Python 3.9 + LibreSSL was not used as the guide baseline.
 - [ ] SSL backend is OpenSSL, not the Apple/system LibreSSL baseline.
+- [ ] The active venv hard stop passed before installing MLX-LM or running model tests.
 - [ ] Venv was rebuilt if it was accidentally created with system Python.
 - [ ] MLX-LM is installed in `~/local-llm/.venv`.
 - [ ] No Python packages were installed with `sudo`.
