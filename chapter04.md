@@ -282,7 +282,7 @@ OpenClaw uses local session/runtime state for the main agent under:
 
 This is normal OpenClaw local state. It should be created under the non-admin runtime user, not under the admin account. It is not repository content and should not be committed to Git.
 
-Actual creation is handled in Chapter 05 during `openclaw doctor`.
+Actual creation is handled in Chapter 06 during `openclaw doctor`.
 
 ## 9. What Not to Do Yet
 
@@ -316,5 +316,5 @@ After this chapter, the Mac mini may be moved to its permanent cabled/headless l
 ---
 
 Previous: [Chapter 03 - SSH Remote Access](chapter03.md)
-Next: [Chapter 05 - Bootstrap OpenClaw Install and Doctor](chapter05.md)
+Next: [Chapter 05 - Install Local LLM Runtime for Headless OpenClaw](chapter05.md)
 [Back to main guide](README.md)

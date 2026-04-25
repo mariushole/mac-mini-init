@@ -17,7 +17,9 @@ These are not the same.
 
 You can move the Mac mini to its permanent cabled/headless location after Chapter 04 is complete and verified.
 
-OpenClaw itself should not be considered fully appliance-style/headless after reboot until Chapter 06 persistent gateway behavior has been selected, configured, and tested.
+Chapter 05 makes local inference ready. Chapter 06 makes OpenClaw installed and doctor-repaired. Chapter 07 makes OpenClaw operational through gateway/provider/channel/persistence decisions.
+
+OpenClaw itself should not be considered fully appliance-style/headless after reboot until Chapter 07 persistent gateway behavior has been selected, configured, and tested.
 
 | Phase / chapter | Local keyboard/mouse/monitor needed? | Can run over SSH? | Notes |
 | --- | ---: | ---: | --- |
@@ -28,11 +30,12 @@ OpenClaw itself should not be considered fully appliance-style/headless after re
 | Create/verify non-admin OpenClaw runtime user | Yes or SSH as admin | Yes after SSH works | Can be done from GUI or with admin shell commands, but must be verified. |
 | Chapter 04 - Prepare SSH and Headless Operations | Maybe for first SSH enablement; otherwise no | Yes | This chapter proves the Mac is ready for headless operation. |
 | Xcode Command Line Tools | Maybe | Yes with `softwareupdate` method | GUI `xcode-select --install` may require local GUI; headless fallback uses `softwareupdate`. |
-| Chapter 05 - Bootstrap OpenClaw Install and Doctor | No | Yes | Installer, PATH, doctor repair, permissions, session store, token, local gateway config. |
+| Chapter 05 - Install Local LLM Runtime for Headless OpenClaw | No | Yes | MLX-LM, Qwen 3.5 9B model selection, local inference test, and resource checks. |
+| Chapter 06 - Install and Bootstrap OpenClaw | No | Yes | Installer, PATH, doctor repair, permissions, session store, token, local gateway config. |
 | Manual foreground gateway test | No | Yes | Run from SSH using `openclaw gateway --port 18789`. |
 | SSH tunnel test | No | Yes | Client workstation tunnels to Mac loopback gateway. |
 | Default user LaunchAgent install | Sometimes yes | Sometimes no | May fail over pure SSH with launchctl error 125 unless the runtime user has a GUI login session. |
-| Chapter 06 - Gateway, Providers, Channels, Persistent Service | Sometimes | Mostly yes | Provider secrets, channels, audit, manual gateway, SSH tunnel are SSH-safe; LaunchAgent may require GUI login. |
+| Chapter 07 - Configure OpenClaw Gateway, Providers, Channels, Pairing, and Persistence | Sometimes | Mostly yes | Provider secrets, channels, audit, manual gateway, SSH tunnel are SSH-safe; LaunchAgent may require GUI login. |
 | Custom LaunchDaemon/headless supervisor | No, after SSH works | Yes | Advanced only; not the default OpenClaw-shipped path. |
 
 ## When Can I Remove Keyboard, Mouse, and Monitor?
@@ -112,12 +115,19 @@ ssh openclaw@<mac-mini-ip>
 | --- | --- | --- |
 | Level 0 - Local setup | Requires keyboard/mouse/monitor | macOS setup not complete. |
 | Level 1 - SSH-ready Mac | Mac can be managed over SSH | Safe to move Mac to permanent wired location after Chapter 04. |
-| Level 2 - OpenClaw bootstrap-ready | OpenClaw installed and doctor repaired over SSH | Chapter 05 complete; manual gateway can be run over SSH. |
-| Level 3 - Remote OpenClaw operation | Gateway reachable through SSH tunnel | Good for controlled operator use; may still be manual after reboot. |
-| Level 4 - Persistent gateway | Gateway starts after reboot/login | Requires validated LaunchAgent or deliberate custom service model. |
-| Level 5 - Appliance-style headless | Gateway starts after reboot without GUI login | Advanced; likely needs custom LaunchDaemon/supervisor, logging, and security review. |
+| Level 2 - Local LLM runtime ready | MLX-LM and Qwen 3.5 9B work locally | Chapter 05 complete; local inference baseline is ready. |
+| Level 3 - OpenClaw bootstrap-ready | OpenClaw installed and doctor repaired over SSH | Chapter 06 complete; OpenClaw runtime state is healthy. |
+| Level 4 - Remote OpenClaw operation | Gateway reachable through SSH tunnel and provider path is configured | Good for controlled operator use; may still be manual after reboot. |
+| Level 5 - Persistent gateway | Gateway starts after reboot/login | Requires validated LaunchAgent or deliberate custom service model. |
+| Level 6 - Appliance-style headless | Gateway and local model runtime start after reboot without GUI login | Advanced; likely needs custom service/supervisor design and security review. |
 
-For the first safe build, target Level 3 first. Do not rush to Level 5. Use manual gateway testing and SSH tunnel access before adding persistent service behavior.
+For the first safe build, target Level 4 first: SSH-ready Mac, local Qwen model working, OpenClaw installed, gateway reachable through SSH tunnel, and no public exposure. Do not rush to appliance-style Level 6.
+
+## Why Local LLM Comes Before OpenClaw Provider Setup
+
+OpenClaw can be installed before a local model runtime exists, but provider onboarding becomes cleaner if the intended local runtime and model are already installed and tested. Otherwise onboarding may push the operator into temporary or GUI-oriented provider choices.
+
+The local model runtime is a dependency for a clean OpenClaw operating setup, even if it is not strictly required for installing the OpenClaw CLI.
 
 ## Guide Structure
 
@@ -127,10 +137,11 @@ For the first safe build, target Level 3 first. Do not rush to Level 5. Use manu
 | [02 - Security Bootstrap](chapter02.md) | Drafted | Turn on FileVault, firewall, stealth mode, updates, and create the non-admin operating user. |
 | [03 - SSH Remote Access](chapter03.md) | Drafted | Enable SSH from the local console, install GitHub public keys, restrict access, and troubleshoot lockouts. |
 | [04 - Prepare SSH and Headless Operations](chapter04.md) | Drafted | Get the Mac mini ready to run permanently without keyboard/mouse/monitor and verify SSH, users, network, Git, and headless prerequisites. |
-| [05 - Bootstrap OpenClaw Install and Doctor](chapter05.md) | Drafted | Install OpenClaw as the non-admin runtime user, repair first-run doctor findings, set local/loopback/token baseline, and verify local runtime state. |
-| [06 - Configure OpenClaw Gateway, Providers, Channels, and Persistent Service](chapter06.md) | Drafted | Configure provider secrets, manual gateway test, SSH tunnel access, channels, security audit, and the chosen persistent gateway model. |
-| [07 - Home Network Access](chapter07.md) | Scaffold | Expose OpenClaw only where needed on the LAN, with DNS, TLS, or reverse proxy notes. |
-| [08 - Backup, Updates, and Recovery](chapter08.md) | Scaffold | Back up config, document restore steps, and maintain the host over time. |
+| [05 - Install Local LLM Runtime for Headless OpenClaw](chapter05.md) | Drafted | Install and test the local model runtime before OpenClaw provider onboarding, using MLX-LM and Qwen 3.5 9B as the April 2026 baseline for a Mac mini M4 with 16 GB unified memory. |
+| [06 - Install and Bootstrap OpenClaw](chapter06.md) | Drafted | Install OpenClaw as the non-admin runtime user, repair first-run doctor findings, set local/loopback/token gateway baseline, and verify local OpenClaw runtime state. |
+| [07 - Configure OpenClaw Gateway, Providers, Channels, Pairing, and Persistence](chapter07.md) | Drafted | Configure provider integration, manual gateway test, SSH tunnel access, channel/pairing approval, security audit, and the chosen persistent gateway model. |
+| [08 - Home Network Access](chapter08.md) | Scaffold | Expose OpenClaw only where needed on the LAN, with DNS, TLS, or reverse proxy notes. |
+| [09 - Backup, Updates, and Recovery](chapter09.md) | Scaffold | Back up config, document restore steps, and maintain the host over time. |
 
 ## Security Principles
 
@@ -159,7 +170,8 @@ Replace these examples with your own values as you work through the chapters:
 - [ ] Chapter 02: Apply the security bootstrap.
 - [ ] Chapter 03: Configure SSH remote access.
 - [ ] Chapter 04: Prepare SSH and headless operations.
-- [ ] Chapter 05: Bootstrap OpenClaw install and doctor.
-- [ ] Chapter 06: Configure OpenClaw gateway, providers, channels, and persistent service.
-- [ ] Chapter 07: Configure LAN access.
-- [ ] Chapter 08: Document backup and recovery.
+- [ ] Chapter 05: Install and test the local LLM runtime.
+- [ ] Chapter 06: Bootstrap OpenClaw install and doctor.
+- [ ] Chapter 07: Configure OpenClaw gateway, providers, channels, pairing, and persistence.
+- [ ] Chapter 08: Configure LAN access.
+- [ ] Chapter 09: Document backup and recovery.

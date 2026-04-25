@@ -1,42 +1,336 @@
 [Back to main guide](README.md)
 
-# Chapter 06 - Configure OpenClaw Gateway, Providers, Channels, and Persistent Service
+# Chapter 06 - Install and Bootstrap OpenClaw
 
-Most of this chapter is SSH-safe, but default macOS user LaunchAgent installation may require a GUI login session as the OpenClaw runtime user.
+This chapter assumes Chapter 05 is complete or deliberately deferred. OpenClaw can be installed without the local model runtime, but provider onboarding is cleaner when the local model path is already known.
 
-This chapter covers the detailed OpenClaw configuration after Chapter 05 bootstrap is complete: provider secrets, manual gateway test, SSH tunnel access, channels, security audit, and the chosen persistent gateway model.
+This chapter is SSH-safe. It should not require keyboard/mouse/monitor unless an unexpected macOS system prompt appears.
+
+Chapter 06 installs OpenClaw as the non-admin runtime user, repairs first-run `openclaw doctor` findings, sets the local/loopback/token gateway baseline, and verifies local OpenClaw runtime state.
+
+Detailed provider integration, device pairing, channels, security audit, and persistent gateway behavior are handled in Chapter 07.
 
 Security baseline:
 
 ```text
-gateway.mode local
-gateway.bind loopback
+standard non-admin runtime user
+admin only for system-level tasks
+OpenClaw files owned by the runtime user
+gateway loopback-only
 token auth enabled
-port 18789 unless deliberately changed
-OpenClaw runs as the non-admin runtime user
-remote access uses SSH tunnel
+remote access through SSH tunnel
+conservative firewall
 no public port forward
 ```
 
-## 1. Confirm Gateway Baseline
-
-Run as the OpenClaw runtime user:
+Confirm before installing:
 
 ```bash
-openclaw config get gateway.mode
-openclaw config get gateway.bind
-openclaw doctor
+whoami
+id -Gn
+xcode-select -p
+git --version
+git config --global --get-regexp '^url\..*insteadOf'
 ```
 
 Expected:
 
 ```text
-gateway.mode: local
-gateway.bind: loopback
-gateway auth: token enabled
+whoami: openclaw or your chosen runtime user
+id -Gn: does not include admin
 ```
 
-If needed:
+## 1. Choose the Install Method
+
+OpenClaw's official docs list these relevant install paths:
+
+| Method | Use when | Notes |
+| --- | --- | --- |
+| Local prefix installer | Recommended here | Installs OpenClaw and a local Node runtime under `~/.openclaw`; no root required. |
+| Standard installer | Good for interactive personal Macs | Detects the OS, installs Node if needed, installs OpenClaw, and can run onboarding. May install Homebrew/Node globally on macOS. |
+| npm global install | Good if you already manage Node yourself | Requires Node 24 recommended or Node 22.14+. |
+| Source install | For development or pinned forks | Requires `pnpm` and a local checkout. |
+
+For this secured Mac mini, use the local prefix installer first. It keeps OpenClaw files, config, secrets, and runtime state owned by the non-admin runtime user.
+
+## 2. Install with the Local Prefix Installer
+
+Stay logged in as the OpenClaw runtime user.
+
+```bash
+cd /tmp
+curl -fsSL --proto '=https' --tlsv1.2 https://openclaw.ai/install-cli.sh -o install-openclaw-cli.sh
+chmod 700 install-openclaw-cli.sh
+```
+
+Optional inspection:
+
+```bash
+sed -n '1,220p' install-openclaw-cli.sh
+```
+
+Help/dry-run check if supported:
+
+```bash
+./install-openclaw-cli.sh --help
+```
+
+Install:
+
+```bash
+./install-openclaw-cli.sh --prefix "$HOME/.openclaw" --version latest
+```
+
+Optional onboarding:
+
+```bash
+./install-openclaw-cli.sh --prefix "$HOME/.openclaw" --version latest --onboard
+```
+
+## 3. Add OpenClaw to PATH
+
+For zsh:
+
+```bash
+grep -q 'HOME/.openclaw/bin' ~/.zshrc 2>/dev/null || printf '\nexport PATH="$HOME/.openclaw/bin:$PATH"\n' >> ~/.zshrc
+export PATH="$HOME/.openclaw/bin:$PATH"
+```
+
+For bash:
+
+```bash
+grep -q 'HOME/.openclaw/bin' ~/.bashrc 2>/dev/null || printf '\nexport PATH="$HOME/.openclaw/bin:$PATH"\n' >> ~/.bashrc
+export PATH="$HOME/.openclaw/bin:$PATH"
+```
+
+Confirm:
+
+```bash
+command -v openclaw
+openclaw --version
+```
+
+If not found:
+
+```bash
+echo "$PATH"
+ls -la "$HOME/.openclaw/bin"
+```
+
+## 4. Run openclaw doctor
+
+Run:
+
+```bash
+openclaw doctor
+```
+
+First-run `doctor` may ask several questions. Answer based on this table.
+
+| Doctor prompt or finding | Recommended answer | Why |
+| --- | --- | --- |
+| Bundled plugin runtime deps are missing | Yes / install them | Normal for first run; needed by bundled plugin runtimes. |
+| `This install is not a git checkout` | No action | Normal for installer/npm/package-manager installs. |
+| `gateway.mode is unset` | Set `gateway.mode local` | Gateway startup is blocked until mode is explicit. |
+| `Gateway auth is off or missing a token` | Yes, generate token | Token auth is recommended even on loopback. |
+| `Tighten permissions on ~/.openclaw to 700?` | Yes, if `whoami` is the runtime user | Keeps config, tokens, logs, sessions, and secrets owner-only. |
+| `Create Session store dir at ~/.openclaw/agents/main/sessions?` | Yes | Normal local runtime state for the main agent. |
+| OAuth dir missing | No action unless using WhatsApp/pairing channel | Informational when no channel needing OAuth is active. |
+| Skills missing requirements | Do not install everything blindly | Minimal secure installs should keep skills intentional. |
+| Plugins disabled | Usually no action | Disabled plugins are not automatically a problem; `Errors: 0` is the first-pass signal. |
+| Enable zsh completion | Yes only if useful | Convenience only; does not affect gateway security. |
+| Install gateway service now | Prefer not yet, unless GUI logged in as runtime user | Chapter 07 covers persistence. |
+
+## 5. Gateway Mode, Bind, and Token
+
+For this Mac mini guide, the baseline is:
+
+```text
+gateway.mode: local
+gateway.bind: loopback
+gateway.auth: token enabled
+```
+
+Set and verify:
+
+```bash
+openclaw config set gateway.mode local
+openclaw config set gateway.bind loopback
+openclaw config get gateway.mode
+openclaw config get gateway.bind
+```
+
+Expected:
+
+```text
+local
+loopback
+```
+
+When prompted:
+
+```text
+Generate and configure a gateway token now?
+```
+
+Answer **Yes** for the standard Mac mini setup. Token auth protects against accidental future LAN exposure, local browser/UI risks, tunnels, and local process misuse. Do not choose **No** unless intentionally managing gateway auth through another documented mechanism.
+
+## 6. Permissions and Session Store
+
+When prompted:
+
+```text
+Tighten permissions on ~/.openclaw to 700?
+```
+
+Answer **Yes** if `whoami` is the intended non-admin runtime user.
+
+When prompted:
+
+```text
+Create Session store dir at ~/.openclaw/agents/main/sessions?
+```
+
+Answer **Yes** for the normal single-operator setup.
+
+Verify:
+
+```bash
+whoami
+id -Gn
+ls -ld ~/.openclaw
+stat -f "%Su %Sp %N" ~/.openclaw
+ls -ld ~/.openclaw/agents/main/sessions
+stat -f "%Su %Sp %N" ~/.openclaw/agents/main/sessions
+```
+
+Expected:
+
+```text
+owner is the OpenClaw runtime user
+~/.openclaw permissions are owner-only, typically drwx------
+session store path is under the runtime user's ~/.openclaw directory
+session store is not group/world-writable
+```
+
+`700` on a directory means only the owner can enter, list, read, or write under it.
+
+The session store is local OpenClaw runtime/session state for the main agent. It is not repository content and should not be committed to Git.
+
+## 7. Update Message
+
+If doctor reports:
+
+```text
+This install is not a git checkout.
+Run `openclaw update` to update via your package manager (npm/pnpm), then rerun doctor.
+```
+
+Treat that as normal for installer/npm/package-manager installs. It is not an error.
+
+Later updates should use:
+
+```bash
+openclaw update
+openclaw doctor
+```
+
+Do not switch to git/source update procedures unless this is actually a source checkout.
+
+## 8. Security, Skills, and Plugins
+
+Doctor may report:
+
+```text
+No channel security warnings detected.
+Run: openclaw security audit --deep
+```
+
+This is a basic channel-security signal only. It does not mean the whole host is secure. The deeper audit is covered in Chapter 07.
+
+Doctor may also report skills and plugin counts, such as:
+
+```text
+Eligible: 6
+Missing requirements: 46
+Blocked by allowlist: 0
+
+Loaded: 59
+Imported: 1
+Disabled: 43
+Errors: 0
+```
+
+Missing skill requirements are normal on a minimal secure install. Disabled plugins are not automatically a problem. `Errors: 0` is the important first-pass plugin signal.
+
+> **Minimal Skill and Plugin Posture**
+>
+> A high number of missing skill requirements is acceptable during first install. Do not add broad credentials, extra runtimes, channels, or third-party dependencies just to make all skills eligible.
+>
+> Treat plugins and skills as part of the local attack surface. Prefer no errors and a small intentional feature set over maximum enabled functionality.
+
+## 9. zsh Completion
+
+When prompted:
+
+```text
+Enable zsh shell completion for openclaw?
+```
+
+Answer **Yes** if the runtime user uses zsh, wants OpenClaw tab completion over SSH, and it is acceptable for OpenClaw to modify the runtime user's shell startup configuration.
+
+Answer **No** if the user uses bash, wants no shell profile changes, or prefers to configure completion manually.
+
+Check:
+
+```bash
+echo "$SHELL"
+dscl . -read "/Users/$(whoami)" UserShell
+```
+
+If enabled:
+
+```bash
+source ~/.zshrc
+command -v openclaw
+openclaw --version
+```
+
+Shell completion is convenience only and does not affect gateway security.
+
+## 10. Local Model Provider Note
+
+If the installed OpenClaw version has a supported MLX/MLX-LM provider path, configure it according to OpenClaw's current provider documentation.
+
+If not, use Chapter 07 to select a deliberate local provider endpoint such as Ollama fallback, LM Studio, or another supported local server.
+
+Do not confuse the Chapter 05 MLX-LM test with a completed OpenClaw provider integration.
+
+## 11. Final Doctor Recheck
+
+After first-run repairs, run doctor again:
+
+```bash
+openclaw doctor
+```
+
+Then check:
+
+```bash
+openclaw config get gateway.mode
+openclaw config get gateway.bind
+openclaw gateway status
+```
+
+Expected baseline:
+
+```text
+gateway.mode: local
+gateway.bind: loopback
+gateway service status is understood
+```
+
+If doctor still reports `gateway.mode is unset`, set it explicitly and rerun doctor:
 
 ```bash
 openclaw config set gateway.mode local
@@ -44,301 +338,36 @@ openclaw config set gateway.bind loopback
 openclaw doctor
 ```
 
-## 2. Store Provider Secrets
-
-Create and lock down the config directory:
-
-```bash
-mkdir -p ~/.openclaw
-chmod 700 ~/.openclaw
-umask 077
-nano ~/.openclaw/.env
-```
-
-Example:
-
-```text
-OPENAI_API_KEY=replace-me
-ANTHROPIC_API_KEY=replace-me
-```
-
-Then:
-
-```bash
-chmod 600 ~/.openclaw/.env
-```
-
-Do not put API keys in this repository.
-
-`700` on a directory and `600` on a secret file are different:
-
-- `700` on a directory lets only the owner enter/list/write the directory.
-- `600` on a secret file lets only the owner read/write the file.
-
-Check model auth:
-
-```bash
-openclaw models status
-openclaw doctor
-```
-
-## 3. Manual Gateway Test
-
-Before installing a persistent service, run the gateway in the foreground:
-
-```bash
-openclaw gateway --port 18789
-```
-
-In a second SSH session:
-
-```bash
-openclaw gateway status
-openclaw status
-```
-
-Stop the foreground gateway with `Ctrl-C`.
-
-## 4. SSH Tunnel Test
-
-From the client machine:
-
-```bash
-ssh -N -L 18789:127.0.0.1:18789 openclaw@<mac-mini-ip>
-```
-
-Then from the client:
-
-```text
-http://127.0.0.1:18789
-```
-
-Or:
-
-```bash
-curl -fsS http://127.0.0.1:18789 >/dev/null && echo "gateway reachable through tunnel"
-```
-
-An SSH tunnel keeps the OpenClaw gateway bound locally on the Mac mini while still allowing remote administration from the workstation.
-
-Do not bind OpenClaw to `0.0.0.0` in this guide.
-
-## 5. macOS LaunchAgent Limitation over SSH/Headless
-
-`openclaw gateway install` installs a user LaunchAgent.
-
-User LaunchAgents normally require the target macOS user's GUI launchd domain to exist. On a headless Mac over SSH, `launchctl bootstrap` may fail with error 125.
-
-Observed fix from the error:
-
-```bash
-openclaw gateway install --force
-```
-
-Run that as the OpenClaw runtime user, not with `sudo` and not as the admin account. If the GUI domain is missing, sign in to the macOS desktop as the OpenClaw runtime user and rerun the command from that user's session.
-
-If a persistent gateway must start before GUI login, that is a different design: a custom LaunchDaemon or another supervised service pattern. OpenClaw says this is not shipped, so keep it as an advanced note, not the main path.
-
-## 6. Persistence Options
-
-Option A: User LaunchAgent after GUI login.
-
-Pros:
-
-- Matches OpenClaw's supported/default macOS service model.
-- Runs as the non-admin OpenClaw runtime user.
-- Keeps files and runtime state under the correct user.
-- Lower privilege than a system LaunchDaemon.
-
-Cons:
-
-- May require the runtime user to have an active macOS GUI login session.
-- May not start after reboot until that user logs in.
-- Less ideal for a fully headless appliance-style host.
-
-Option B: Custom LaunchDaemon or external supervisor.
-
-Pros:
-
-- Better fit for true headless boot-time service.
-- Can start before GUI login.
-- More appliance-like.
-
-Cons:
-
-- Not shipped by OpenClaw according to the observed error.
-- Requires custom design, testing, logging, and security review.
-- Higher risk of running with wrong privileges.
-- Easy to accidentally run OpenClaw as root or admin if implemented poorly.
-- Should not be part of the initial safe baseline.
-
-Least-regret recommendation:
-
-```text
-Use manual foreground gateway during bootstrap. Use OpenClaw's user LaunchAgent only after confirming the runtime user and, if required, signing into the macOS desktop as that user. Defer custom LaunchDaemon patterns to an advanced appendix.
-```
-
-## 7. Install the User LaunchAgent
-
-Only do this after manual gateway startup, tunnel testing, and security review are clean.
-
-Run as the OpenClaw runtime user:
-
-```bash
-openclaw gateway install
-openclaw gateway status
-```
-
-If the LaunchAgent failed earlier and you have a valid GUI login session as the runtime user:
-
-```bash
-openclaw gateway install --force
-openclaw gateway status
-```
-
-Do not use `sudo`. Do not run this as `adminuser`.
-
-## 8. Channel Setup
-
-Configure only the channels you intend to use.
-
-Baseline posture:
-
-- Keep gateway bind on loopback.
-- Use token auth.
-- Prefer pairing or allowlist behavior where applicable.
-- Avoid broad channel exposure during first install.
-- Do not enable WhatsApp/pairing/OAuth-style channels until the credential storage and channel security implications are understood.
-
-## 9. Skill and Plugin Allowlist Posture
-
-Treat plugins and skills as part of the local attack surface.
-
-- Start with the minimum set required for installation, doctor, gateway, and intended channels.
-- Review plugin purpose and permissions before enabling more.
-- Missing skill requirements are normal on a minimal secure install.
-- Prefer a small, intentional, allowlisted skill set.
-
-## 10. Security Audit
-
-Run:
-
-```bash
-openclaw security audit --deep
-```
-
-Review findings before enabling more channels, plugins, or background gateway operation.
-
-`No channel security warnings detected` from doctor is not the same as a full security audit.
-
-## 11. Conservative Firewall Verification
-
-Check:
-
-```bash
-sudo /usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate
-sudo /usr/libexec/ApplicationFirewall/socketfilterfw --getstealthmode
-sudo lsof -nP -iTCP -sTCP:LISTEN
-```
-
-If the runtime user cannot run `sudo`:
-
-```bash
-su - adminuser
-sudo /usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate
-sudo /usr/libexec/ApplicationFirewall/socketfilterfw --getstealthmode
-sudo lsof -nP -iTCP -sTCP:LISTEN
-exit
-```
-
-Expected:
-
-```text
-ssh listens on port 22 for LAN administration.
-OpenClaw listens on 127.0.0.1:18789 or another loopback address.
-No public router port forward points to OpenClaw.
-```
-
-## 12. Reboot Verification
-
-Reboot from the admin account if the OpenClaw runtime user cannot:
-
-```bash
-su - adminuser
-sudo shutdown -r now
-```
-
-Reconnect over SSH after the Mac mini returns:
-
-```bash
-ssh openclaw@<mac-mini-ip>
-```
-
-Verify:
-
-```bash
-openclaw gateway status
-openclaw doctor
-openclaw logs --follow
-```
-
-Document whether the gateway starts automatically, starts only after GUI login, or requires manual foreground startup.
-
-## 13. Update Procedure
-
-Run updates as the OpenClaw runtime user:
-
-```bash
-openclaw update --dry-run
-openclaw update
-openclaw doctor
-openclaw gateway restart
-openclaw health
-```
-
-If the update fails because the installation path is not writable, confirm OpenClaw was not accidentally installed as the admin user.
-
-## 14. Install and Config Record
-
-Record:
-
-```text
-OpenClaw runtime user:
-Admin user:
-Install method:
-Install prefix:
-OpenClaw version:
-Node version:
-Gateway port:
-Gateway bind:
-Gateway auth:
-Provider secrets location:
-SSH tunnel command:
-Persistent service model:
-LaunchAgent installed:
-LaunchAgent requires GUI login:
-Admin user used for:
-```
+Detailed provider integration, device pairing, channels, security audit, and persistent gateway behavior are handled in Chapter 07.
 
 ## End-of-Chapter Check
 
-- [ ] Provider secrets are stored outside the repository.
-- [ ] `~/.openclaw/.env` is mode `600`.
-- [ ] Gateway starts manually.
-- [ ] Gateway binds only to loopback.
-- [ ] Gateway is reachable through SSH tunnel.
-- [ ] `openclaw security audit --deep` was run and reviewed.
-- [ ] Channel configuration is minimal and explicitly allowed.
-- [ ] Skills/plugins are minimal and reviewed.
-- [ ] Persistent gateway service model was selected deliberately.
-- [ ] If using LaunchAgent, it was installed as the runtime user, not admin.
-- [ ] If LaunchAgent failed due to missing GUI session, this was documented and not bypassed with sudo.
-- [ ] No gateway is exposed on `0.0.0.0`.
-- [ ] No public router port forward points to OpenClaw.
-- [ ] Reboot behavior is tested and documented.
+- [ ] OpenClaw is installed as the non-admin runtime user.
+- [ ] `openclaw --version` works.
+- [ ] First-run `openclaw doctor` completed.
+- [ ] Gateway token prompt was answered Yes.
+- [ ] `gateway.mode` is set to `local`.
+- [ ] `gateway.bind` is set to `loopback`.
+- [ ] `~/.openclaw` was tightened to `700`.
+- [ ] `~/.openclaw/agents/main/sessions` was created under the runtime user.
+- [ ] Missing OAuth dir was understood as informational when no WhatsApp/pairing channel is active.
+- [ ] Skills with missing requirements were not blindly enabled.
+- [ ] Plugin status was reviewed and `Errors: 0` was confirmed if shown.
+- [ ] zsh completion was enabled only if useful for the runtime user.
+- [ ] `openclaw doctor` was rerun after repairs.
+- [ ] No OpenClaw files, config, sessions, or LaunchAgent were intentionally created under the admin account.
+
+## References
+
+- [OpenClaw install overview](https://docs.openclaw.ai/install)
+- [OpenClaw installer internals](https://docs.openclaw.ai/install/installer)
+- [OpenClaw Node.js requirements](https://docs.openclaw.ai/install/node)
+- [OpenClaw gateway runbook](https://docs.openclaw.ai/gateway)
+- [OpenClaw authentication](https://docs.openclaw.ai/gateway/authentication)
+- [OpenClaw updating](https://docs.openclaw.ai/install/updating)
 
 ---
 
-Previous: [Chapter 05 - Bootstrap OpenClaw Install and Doctor](chapter05.md)
-Next: [Chapter 07 - Home Network Access](chapter07.md)
+Previous: [Chapter 05 - Install Local LLM Runtime for Headless OpenClaw](chapter05.md)
+Next: [Chapter 07 - Configure OpenClaw Gateway, Providers, Channels, Pairing, and Persistence](chapter07.md)
 [Back to main guide](README.md)

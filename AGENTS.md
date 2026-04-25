@@ -29,10 +29,11 @@ Preserve this baseline throughout the guide:
 Keep the current split clear:
 
 - Chapter 04 prepares SSH/headless operation and must stop before installing OpenClaw.
-- Chapter 05 bootstraps OpenClaw installation and `openclaw doctor`.
-- Chapter 06 configures gateway, providers, channels, security audit, and persistent service behavior.
+- Chapter 05 installs and verifies the local LLM runtime and must stop before installing OpenClaw.
+- Chapter 06 bootstraps OpenClaw installation and `openclaw doctor`.
+- Chapter 07 configures gateway, providers, channels, pairing, security audit, and persistent service behavior.
 
-Do not move provider secrets, channel setup, persistent service design, or LaunchAgent final setup back into Chapter 05.
+Do not move OpenClaw install, provider secrets, channel setup, persistent service design, or LaunchAgent final setup back into Chapter 05.
 
 ## Local Access vs SSH
 
@@ -41,7 +42,7 @@ Always make the local-vs-SSH boundary explicit:
 - Local keyboard/mouse/monitor is required for initial macOS setup.
 - The Mac mini can move to permanent wired/headless location after Chapter 04 is complete and SSH reconnect after reboot has been tested.
 - SSH-ready does not mean OpenClaw is persistent-service-ready.
-- OpenClaw is not appliance-style/headless until Chapter 06 persistent gateway behavior is selected, configured, and tested.
+- OpenClaw is not appliance-style/headless until Chapter 07 persistent gateway behavior is selected, configured, and tested.
 
 ## LaunchAgent Guidance
 
@@ -58,7 +59,7 @@ Preserve the LaunchAgent distinction:
 
 - Keep commands copy/paste-safe.
 - Use fenced code blocks with language tags.
-- Prefer commands that work over SSH for Chapters 04-06 unless a local GUI requirement is explicitly stated.
+- Prefer commands that work over SSH for Chapters 04-07 unless a local GUI requirement is explicitly stated.
 - Use `su - adminuser` only where admin escalation is required, then show `exit` back to the runtime user.
 - Do not invent OpenClaw commands. If uncertain, describe the assumption or verify against official OpenClaw docs before adding commands.
 
@@ -76,4 +77,3 @@ Preserve the LaunchAgent distinction:
 - Commit only intentional guide files.
 - Do not commit local Codex scratch files or private environment notes.
 - Keep `.codex` and similar local agent state ignored.
-

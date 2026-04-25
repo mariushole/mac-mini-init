@@ -1,20 +1,20 @@
 [Back to main guide](README.md)
 
-# Chapter 08 - Backup, Updates, and Recovery
+# Chapter 08 - Home Network Access
 
 Scaffold chapter.
 
 Planned scope:
 
-- Back up OpenClaw configuration.
-- Document restore steps.
-- Define update cadence.
-- Test recovery from a clean machine.
-- Keep a maintenance log.
+- Decide the local URL for OpenClaw.
+- Configure local DNS or mDNS.
+- Add firewall rules only for required ports.
+- Consider TLS for local access.
+- Avoid public exposure unless a later remote-access design is documented.
 
 ---
 
-Previous: [Chapter 07 - Home Network Access](chapter07.md)  
-Next: [Main Guide](README.md)  
+Previous: [Chapter 07 - Configure OpenClaw Gateway, Providers, Channels, Pairing, and Persistence](chapter07.md)
+Next: [Chapter 09 - Backup, Updates, and Recovery](chapter09.md)
 [Back to main guide](README.md)
 
