@@ -57,7 +57,61 @@ Decision path:
 - Ollama is the practical fallback if an API server is required.
 - LM Studio is acceptable for GUI experimentation but is not the preferred headless dependency.
 
+Carry forward the Chapter 05 local LLM facts before provider setup:
+
+```bash
+cd ~/local-llm
+source .venv/bin/activate
+
+MODEL="mlx-community/Qwen3.5-9B-OptiQ-4bit"
+PYTHON_EXE="$(command -v python)"
+PYTHON_VERSION="$(python --version 2>&1)"
+SSL_LIBRARY="$(python -c 'import ssl; print(ssl.OPENSSL_VERSION)')"
+MLX_LM_VERSION="$(python -m pip show mlx-lm | awk -F': ' '/^Version:/ {print $2}')"
+HF_CACHE="${HF_HOME:-$HOME/.cache/huggingface}"
+MODEL_SHA="$(python - <<'PY'
+from huggingface_hub import model_info
+info = model_info("mlx-community/Qwen3.5-9B-OptiQ-4bit")
+print(info.sha)
+PY
+)"
+
+printf 'MODEL=%s\nPYTHON_EXE=%s\nPYTHON_VERSION=%s\nSSL_LIBRARY=%s\nMLX_LM_VERSION=%s\nHF_CACHE=%s\nMODEL_SHA=%s\n' \
+  "$MODEL" "$PYTHON_EXE" "$PYTHON_VERSION" "$SSL_LIBRARY" "$MLX_LM_VERSION" "$HF_CACHE" "$MODEL_SHA"
+```
+
+These values prove what is installed locally. They are not provider secrets, and by themselves they do not configure OpenClaw to use the model.
+
+Record the local LLM handoff under `~/.openclaw`:
+
+```bash
+mkdir -p ~/.openclaw
+chmod 700 ~/.openclaw
+
+cat > ~/.openclaw/local-llm-record.txt <<EOF
+Local LLM runtime: MLX-LM
+Runtime version: $MLX_LM_VERSION
+Python executable: $PYTHON_EXE
+Python version: $PYTHON_VERSION
+SSL library: $SSL_LIBRARY
+Virtual environment path: $HOME/local-llm/.venv
+Hugging Face cache path: $HF_CACHE
+Model family: Qwen 3.5 9B
+Exact model ID: $MODEL
+Model SHA / revision: $MODEL_SHA
+Provider path selected:
+Notes:
+EOF
+
+chmod 600 ~/.openclaw/local-llm-record.txt
+cat ~/.openclaw/local-llm-record.txt
+```
+
 ## 3. Store Provider Secrets
+
+This section is for secrets such as cloud API keys or provider tokens.
+
+If the only provider work completed so far is Chapter 05 MLX-LM local CLI inference, there may be no API secret to store yet. Do not invent `.env` variables for MLX-LM. Use `~/.openclaw/local-llm-record.txt` for the local runtime facts above, then configure the actual OpenClaw provider path according to the installed OpenClaw version's documentation.
 
 Create and lock down the config directory:
 
@@ -427,6 +481,7 @@ OpenClaw version:
 Node version:
 Local LLM runtime:
 Local model:
+Local LLM record path:
 Provider path:
 Gateway port:
 Gateway bind:
@@ -442,6 +497,7 @@ Admin user used for:
 ## End-of-Chapter Check
 
 - [ ] Provider path is selected deliberately.
+- [ ] Chapter 05 local LLM handoff was recorded in `~/.openclaw/local-llm-record.txt`.
 - [ ] Provider secrets are stored outside the repository.
 - [ ] `~/.openclaw/.env` is mode `600`.
 - [ ] Gateway starts manually.
