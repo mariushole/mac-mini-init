@@ -304,39 +304,33 @@ ai.openclaw.gateway      -> OpenClaw gateway on 127.0.0.1:18789
 
 Both should run as the non-admin OpenClaw runtime user.
 
-Create directories:
+The safest path is to generate the wrapper and LaunchAgent with a script. The script derives the runtime user's home directory and writes absolute paths into the plist. It does not rely on `$HOME` expansion inside launchd.
 
 ```bash
-mkdir -p ~/.openclaw/bin
-mkdir -p ~/.openclaw/logs
-mkdir -p ~/Library/LaunchAgents
-chmod 700 ~/.openclaw
+./chapter07-install-mlx-launchagent.sh
 ```
 
-Create a wrapper script:
+Or fetch and run it from the guide repository:
 
 ```bash
-cat > ~/.openclaw/bin/start-mlx-lm-server.sh <<'EOF'
-#!/bin/zsh
-set -euo pipefail
-
-cd "$HOME/local-llm"
-source "$HOME/local-llm/.venv/bin/activate"
-
-MODEL="mlx-community/Qwen3.5-9B-OptiQ-4bit"
-HOST="127.0.0.1"
-PORT="8080"
-
-exec mlx_lm.server \
-  --model "$MODEL" \
-  --host "$HOST" \
-  --port "$PORT"
-EOF
-
-chmod 700 ~/.openclaw/bin/start-mlx-lm-server.sh
+REPO_RAW_BASE="https://raw.githubusercontent.com/YOUR-GITHUB-USER/mac-mini-init/main"
+curl -fsSL "$REPO_RAW_BASE/chapter07-install-mlx-launchagent.sh" | bash
 ```
 
-Test the wrapper in the foreground:
+Replace `YOUR-GITHUB-USER` with the GitHub account that hosts your fork of this guide.
+
+The script creates:
+
+```text
+~/.openclaw/bin/start-mlx-lm-server.sh
+~/Library/LaunchAgents/ai.openclaw.mlx-lm.plist
+~/.openclaw/logs/mlx-lm-server.log
+~/.openclaw/logs/mlx-lm-server.err
+```
+
+It also verifies that the plist does not contain literal `$HOME` placeholders.
+
+If you want to inspect or test the wrapper manually, run:
 
 ```bash
 ~/.openclaw/bin/start-mlx-lm-server.sh
@@ -350,10 +344,18 @@ curl -fsS http://127.0.0.1:8080/v1/models
 
 Stop the wrapper with `Ctrl-C`.
 
-Create a user LaunchAgent:
+If you need to recreate the LaunchAgent manually instead of using the script, derive the home directory first:
 
 ```bash
-cat > ~/Library/LaunchAgents/ai.openclaw.mlx-lm.plist <<'EOF'
+HOME_DIR="$(dscl . -read "/Users/$(whoami)" NFSHomeDirectory 2>/dev/null | awk '{print $2}')"
+test -n "$HOME_DIR" || HOME_DIR="$(cd ~ && pwd)"
+echo "$HOME_DIR"
+```
+
+Then write absolute paths into the plist. This heredoc is intentionally unquoted so shell variables are expanded before the file is written:
+
+```bash
+cat > "$HOME_DIR/Library/LaunchAgents/ai.openclaw.mlx-lm.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -366,16 +368,16 @@ cat > ~/Library/LaunchAgents/ai.openclaw.mlx-lm.plist <<'EOF'
     <array>
       <string>/bin/zsh</string>
       <string>-lc</string>
-      <string>$HOME/.openclaw/bin/start-mlx-lm-server.sh</string>
+      <string>$HOME_DIR/.openclaw/bin/start-mlx-lm-server.sh</string>
     </array>
 
     <key>WorkingDirectory</key>
-    <string>$HOME/local-llm</string>
+    <string>$HOME_DIR/local-llm</string>
 
     <key>EnvironmentVariables</key>
     <dict>
       <key>PATH</key>
-      <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+      <string>$HOME_DIR/local-llm/.venv/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
       <key>PYTHONUNBUFFERED</key>
       <string>1</string>
     </dict>
@@ -387,35 +389,34 @@ cat > ~/Library/LaunchAgents/ai.openclaw.mlx-lm.plist <<'EOF'
     <true/>
 
     <key>StandardOutPath</key>
-    <string>$HOME/.openclaw/logs/mlx-lm-server.log</string>
+    <string>$HOME_DIR/.openclaw/logs/mlx-lm-server.log</string>
 
     <key>StandardErrorPath</key>
-    <string>$HOME/.openclaw/logs/mlx-lm-server.err</string>
+    <string>$HOME_DIR/.openclaw/logs/mlx-lm-server.err</string>
   </dict>
 </plist>
 EOF
 
-chmod 600 ~/Library/LaunchAgents/ai.openclaw.mlx-lm.plist
+chmod 600 "$HOME_DIR/Library/LaunchAgents/ai.openclaw.mlx-lm.plist"
 ```
 
-macOS LaunchAgent plist files do not expand `$HOME` in all keys reliably. Replace `$HOME` with the actual home path before loading:
+Verify no literal `$HOME` placeholders remain:
 
 ```bash
-HOME_ESCAPED="$(printf '%s\n' "$HOME" | sed 's/[\/&]/\\&/g')"
-sed -i '' "s|\$HOME|$HOME_ESCAPED|g" ~/Library/LaunchAgents/ai.openclaw.mlx-lm.plist
+grep -n '\$HOME' "$HOME_DIR/Library/LaunchAgents/ai.openclaw.mlx-lm.plist" || echo "No literal HOME placeholders remain"
 ```
 
 Validate the plist:
 
 ```bash
-plutil -lint ~/Library/LaunchAgents/ai.openclaw.mlx-lm.plist
+plutil -lint "$HOME_DIR/Library/LaunchAgents/ai.openclaw.mlx-lm.plist"
 ```
 
 Load the LaunchAgent:
 
 ```bash
 launchctl bootout "gui/$UID/ai.openclaw.mlx-lm" 2>/dev/null || true
-launchctl bootstrap "gui/$UID" ~/Library/LaunchAgents/ai.openclaw.mlx-lm.plist
+launchctl bootstrap "gui/$UID" "$HOME_DIR/Library/LaunchAgents/ai.openclaw.mlx-lm.plist"
 launchctl kickstart -k "gui/$UID/ai.openclaw.mlx-lm"
 ```
 
