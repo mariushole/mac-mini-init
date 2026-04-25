@@ -2,88 +2,38 @@
 
 # Chapter 05 - Install Local LLM Runtime for Headless OpenClaw
 
-This chapter installs and verifies the local LLM runtime before OpenClaw provider onboarding. The goal is to make sure the Mac mini can run a suitable local model over SSH before OpenClaw is configured to use it.
+This chapter installs and verifies the local LLM runtime before OpenClaw provider onboarding. OpenClaw can be installed without a local model runtime, but onboarding is cleaner when the intended local model path is already known and tested.
 
-As of April 2026, this guide uses MLX-LM and Qwen 3.5 9B as the default local inference baseline for a Mac mini M4 with 16 GB unified memory.
-
-Sources used for model/runtime context:
-
-- [Best Local LLMs for Mac in 2026 - InsiderLLM](https://insiderllm.com/guides/best-local-llms-mac-2026/)
-- [MLX-LM on GitHub](https://github.com/ml-explore/mlx-lm)
-- [mlx-community/Qwen3.5-9B-OptiQ-4bit on Hugging Face](https://huggingface.co/mlx-community/Qwen3.5-9B-OptiQ-4bit)
-
-OpenClaw can be installed before a local model runtime exists, but provider onboarding becomes cleaner if the intended local runtime and model are already installed and tested. Otherwise onboarding may push the operator into temporary or GUI-oriented provider choices.
-
-The local model runtime is a dependency for a clean OpenClaw operating setup, even if it is not strictly required for installing the OpenClaw CLI.
-
-## 1. Scope
-
-This chapter covers:
-
-- Why local LLM setup comes before OpenClaw provider setup.
-- Why MLX-LM is the recommended first runtime for this guide.
-- Why Qwen 3.5 9B is the recommended first model for a Mac mini M4 with 16 GB unified memory.
-- How to select a modern Python baseline before creating the virtual environment.
-- How to install MLX-LM without `sudo`.
-- How to run a local Qwen 3.5 9B test.
-- How to validate memory and storage impact.
-- How to document the model path and runtime decision.
-
-This chapter does not cover OpenClaw install, `openclaw doctor`, OpenClaw gateway setup, provider onboarding, channel setup, LaunchAgent setup, or persistent service design. Those belong in Chapter 06 and Chapter 07.
-
-## 2. Recommendation
+As of April 2026, this guide uses this baseline:
 
 ```text
-Recommended runtime: MLX-LM
-Recommended first model: mlx-community/Qwen3.5-9B-OptiQ-4bit
-Model family: Qwen 3.5 9B, OptiQ 4-bit / mixed precision
-Target host: Mac mini M4, 16 GB unified memory
-Date of recommendation: April 2026
+Runtime: MLX-LM
+Model: mlx-community/Qwen3.5-9B-OptiQ-4bit
+Host: Mac mini M4 with 16 GB unified memory
+Python: Python 3.12 with OpenSSL
+Install user: non-admin OpenClaw runtime user, for example openclaw
 ```
 
-Reasoning:
+MLX-LM proves local Apple Silicon CLI inference. It is not automatically an always-on OpenClaw provider endpoint. Chapter 07 decides how OpenClaw consumes local inference.
 
-- InsiderLLM's April 2026 guide places 16 GB Macs in the practical 7B-9B tier.
-- It recommends Qwen 3.5 9B Q4 as the pick for 16 GB Macs.
-- It describes the Qwen 3.5 9B Q4 footprint as roughly 6.6 GB with a practical speed range around 20-40 tok/s.
-- It describes MLX-LM as the Apple-native/Python CLI path for maximum speed when the model is supported.
-- The Hugging Face model page for `mlx-community/Qwen3.5-9B-OptiQ-4bit` identifies it as MLX, text-generation, Apache-2.0, Qwen 3.5 9B, 4-bit/mixed precision, about 6.04 GB, and says the basic path works with stock `mlx-lm`.
-- On a 16 GB Mac, 27B/35B models are not the right default because OpenClaw-style agent workflows need headroom for macOS, runtime overhead, and context/KV cache.
-- A smaller stable 9B model is more useful than a larger model that technically loads but starves context or swaps.
+## 1. Operating Rules
 
-This is the guide's tested/default model ID as of April 2026. It is not the only valid Qwen 3.5 9B model. Recheck the model page before future rebuilds.
+- Run the local LLM runtime as the non-admin OpenClaw runtime user, for example `openclaw`.
+- Use `adminuser` only for system/package-manager bootstrap tasks such as Homebrew or Python installation.
+- Exit the admin shell immediately after admin work is done.
+- Do not install Python packages with `sudo pip`.
+- Do not create the MLX-LM venv as `adminuser`.
+- Do not use Apple/system Python 3.9 + LibreSSL as the guide baseline.
+- Do not use 27B/35B models as the default on a 16 GB Mac mini.
 
-> **Why Not Start with a 27B/35B Model?**
->
-> A model that technically loads is not necessarily operationally useful. On a 16 GB Mac mini, larger 27B/35B models leave too little headroom for macOS, context, runtime overhead, and OpenClaw agent workflows. Start with Qwen 3.5 9B and only test larger models later as experiments.
+## 2. Confirm the Runtime User
 
-> **MLX-LM vs Ollama vs LM Studio**
->
-> MLX-LM is preferred in this chapter for Apple-native performance and a clean Python CLI workflow.
->
-> Ollama is useful when an API server is needed quickly and model management simplicity matters.
->
-> LM Studio is useful for GUI experimentation, visual model browsing, and manual parameter tuning.
->
-> For a permanent SSH/headless Mac mini, avoid making LM Studio the default dependency.
->
-> If OpenClaw later requires an HTTP provider endpoint rather than a CLI-only model path, Chapter 07 should handle that explicitly by either using a supported OpenClaw provider path or adding a deliberately chosen local model server. Do not hide this distinction.
-
-> **Important Honesty Note**
->
-> MLX-LM is excellent for local CLI inference, but it is not the same thing as an always-on OpenClaw provider endpoint. This chapter proves that the Mac can run the model locally. Chapter 07 decides how OpenClaw will consume local inference: directly if supported by the installed OpenClaw version, or through a deliberately selected local provider/server path.
-
-## 3. Confirm Runtime User and Python Baseline
-
-Run as the non-admin OpenClaw runtime user:
+Run this as the OpenClaw runtime user:
 
 ```bash
 whoami
 id -Gn
 pwd
-command -v python3 || true
-python3 --version || true
-python3 -c "import ssl; print(ssl.OPENSSL_VERSION)" 2>/dev/null || true
 ```
 
 Expected:
@@ -92,82 +42,68 @@ Expected:
 whoami: openclaw or the chosen runtime user
 id -Gn: does not include admin
 pwd: /Users/openclaw or that user's home directory
-python: preferably Python 3.11 or 3.12
-ssl: OpenSSL, not Apple LibreSSL, for the preferred baseline
 ```
 
-If `python3` is `/usr/bin/python3`, reports Python 3.9.x, and SSL reports LibreSSL, do not use it as the guide baseline for MLX-LM.
+If the user is in the `admin` group, fix that before continuing. The local LLM runtime and OpenClaw should not run from the admin account.
 
-The macOS system Python may be old, for example Python 3.9. A Python 3.9 venv can force older MLX-LM versions and trigger dependency backtracking.
+## 3. Check the Existing Python
 
-Apple/system Python may also be linked against LibreSSL, causing warnings such as:
-
-```text
-NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'
+```bash
+command -v python3 || true
+python3 --version || true
+python3 -c "import ssl; print(ssl.OPENSSL_VERSION)" 2>/dev/null || true
 ```
 
-This warning is not always fatal, but it is a poor baseline for a repeatable guide.
+If this shows `/usr/bin/python3`, Python `3.9.x`, or `LibreSSL`, do not use it for the MLX-LM venv. It can still run small scripts, but it is not the repeatable baseline for this guide.
 
-The recommended baseline is a modern user-owned Python, preferably Python 3.12. Do not use `sudo pip`.
+The preferred baseline is Python 3.12 with OpenSSL, installed through Homebrew or the official Python.org macOS installer.
 
-## 4. Install Homebrew if Missing
+## 4. Install Homebrew and Python 3.12 if Needed
 
-Check whether Homebrew is installed:
+Check for Homebrew and Python 3.12:
 
 ```bash
 command -v brew || true
+test -x /opt/homebrew/bin/python3.12 && /opt/homebrew/bin/python3.12 --version || true
 ```
 
-If nothing is returned, Homebrew is not installed. For this guide, Homebrew is the preferred way to install Python 3.12 on Apple Silicon because it installs into `/opt/homebrew` and gives a repeatable CLI-managed Python path.
+If both are present, skip to Section 5.
 
-Installing Homebrew is a system/package-manager bootstrap step. The non-admin `openclaw` runtime user may not have `sudo`, and that is expected. If the installer says the current user needs to be an Administrator, switch temporarily to the admin account:
+If Homebrew is missing, or if `brew install python@3.12` requires admin rights, switch temporarily to the admin account:
 
 ```bash
 su - adminuser
 ```
 
-Install Homebrew from the admin shell:
+From the admin shell, install Homebrew if needed:
 
 ```bash
 cd ~
 
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-```
+if ! command -v brew >/dev/null 2>&1; then
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+fi
 
-The Homebrew installer may ask for the admin user's password to create or adjust `/opt/homebrew`. That is a system/package-manager bootstrap step, not an OpenClaw runtime step.
-
-Set up the Apple Silicon shell environment:
-
-```bash
-echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
 eval "$(/opt/homebrew/bin/brew shellenv)"
+command -v brew
+brew --version
 ```
 
-Install Python 3.12 while still in the admin shell:
+Install Python 3.12:
 
 ```bash
 brew install python@3.12
-```
-
-Verify Homebrew and Python from the admin shell:
-
-```bash
-command -v brew
-brew --version
-brew doctor
 /opt/homebrew/bin/python3.12 --version
 /opt/homebrew/bin/python3.12 -c "import ssl; print(ssl.OPENSSL_VERSION)"
 ```
 
-`brew doctor` may print warnings. Document serious warnings, but do not chase unrelated cosmetic warnings during this chapter.
-
-Exit the admin shell immediately after the system/package-manager work is complete:
+Exit the admin shell:
 
 ```bash
 exit
 ```
 
-Back as the runtime user, load Homebrew into the runtime user's shell and verify Python:
+Back as the runtime user, load Homebrew and verify Python:
 
 ```bash
 whoami
@@ -186,74 +122,11 @@ Python 3.12.x
 OpenSSL ...
 ```
 
-After installation, normal `brew install` operations should run as the user when Homebrew permissions allow it. If the standard runtime user cannot install packages, do not make the runtime user an admin just to continue. Switch temporarily to `adminuser`, perform the system/package-manager task, then `exit` back to `openclaw`.
+If Homebrew is not allowed on this host, install a current Python 3.12+ macOS package from Python.org, then verify `python3.12 --version` and its SSL backend before continuing.
 
-Do not run OpenClaw itself as admin/root. Do not create the MLX-LM venv while still inside `su - adminuser`.
+## 5. Select Python 3.12
 
-If Homebrew installation is not allowed, use the official Python.org macOS installer as the alternative path.
-
-### Alternative: Python.org macOS Installer
-
-If Homebrew is not desired, install a current Python 3.12+ macOS installer from Python.org. Use the signed macOS installer package, then verify the installed Python path before creating the venv.
-
-Verify:
-
-```bash
-command -v python3.12 || true
-python3.12 --version || true
-python3.12 -c "import ssl; print(ssl.OPENSSL_VERSION)" || true
-```
-
-Prefer Homebrew for this guide because later CLI dependencies are easier to manage. Python.org is acceptable if Homebrew is not part of the host baseline.
-
-Do not use `/usr/bin/python3` for the MLX-LM venv baseline unless explicitly accepting a fallback/degraded path.
-
-## 5. Install or Select Python 3.12
-
-First check whether Python 3.12 is already available:
-
-```bash
-command -v brew
-test -x /opt/homebrew/bin/python3.12 && /opt/homebrew/bin/python3.12 --version
-```
-
-If `/opt/homebrew/bin/python3.12` is missing and Homebrew is installed, install Python as a deliberate package-manager task. If the non-admin runtime user cannot run the install, switch temporarily to the admin account:
-
-```bash
-su - adminuser
-eval "$(/opt/homebrew/bin/brew shellenv)"
-brew install python@3.12
-/opt/homebrew/bin/python3.12 --version
-/opt/homebrew/bin/python3.12 -c "import ssl; print(ssl.OPENSSL_VERSION)"
-exit
-```
-
-After exiting the admin shell, verify again as the runtime user:
-
-```bash
-whoami
-/opt/homebrew/bin/python3.12 --version
-/opt/homebrew/bin/python3.12 -c "import ssl; print(ssl.OPENSSL_VERSION)"
-```
-
-Expected:
-
-```text
-Python 3.12.x
-OpenSSL ...
-```
-
-Expected `whoami` is `openclaw` or the chosen non-admin runtime user. Continue only after leaving the admin shell.
-
-Fallback selector if Python 3.12 is installed somewhere else:
-
-```bash
-command -v python3.12
-python3.12 --version
-python3.12 -c "import ssl; print(ssl.OPENSSL_VERSION)"
-```
-
-Select the Python binary:
+Run this as the runtime user:
 
 ```bash
 if [ -x /opt/homebrew/bin/python3.12 ]; then
@@ -270,21 +143,18 @@ echo "$PYTHON_BIN"
 "$PYTHON_BIN" -c "import ssl; print(ssl.OPENSSL_VERSION)"
 ```
 
-This prevents accidentally creating the venv with `/usr/bin/python3`. The guide uses `$PYTHON_BIN` for venv creation.
+Do not proceed unless this shows Python 3.12 and OpenSSL.
 
-Keep this conservative:
+## 6. Create a Clean MLX-LM Virtual Environment
 
-- Do not use random curl-pipe Python installers in this chapter.
-- Do not require admin/root for Python package installation.
-- Python packages must be installed in a venv owned by the runtime user.
-
-## 6. Create the MLX-LM Virtual Environment
-
-Create the venv with Python 3.12:
+If an old venv exists, remove it. This is intentional: a venv created with Apple/system Python 3.9 will keep using Python 3.9 even after Python 3.12 is installed.
 
 ```bash
+deactivate 2>/dev/null || true
+
 mkdir -p ~/local-llm
 cd ~/local-llm
+rm -rf .venv
 
 "$PYTHON_BIN" -m venv .venv
 source .venv/bin/activate
@@ -294,20 +164,7 @@ python -c "import ssl; print(ssl.OPENSSL_VERSION)"
 python -m pip install --upgrade pip
 ```
 
-Expected:
-
-```text
-Python 3.12.x
-OpenSSL ...
-```
-
-Guard:
-
-```bash
-test "$VIRTUAL_ENV" = "$HOME/local-llm/.venv" && echo "venv ok"
-```
-
-Hard stop if the active venv is wrong:
+Hard stop if the venv is wrong:
 
 ```bash
 python - <<'PY'
@@ -318,81 +175,35 @@ print("python:", sys.version.split()[0])
 print("ssl:", ssl.OPENSSL_VERSION)
 
 if sys.version_info < (3, 11):
-    raise SystemExit("Stop: this venv is too old for the guide baseline. Rebuild it with Python 3.12.")
+    raise SystemExit("Stop: venv is too old. Rebuild it with Python 3.12.")
 
 if "LibreSSL" in ssl.OPENSSL_VERSION:
-    raise SystemExit("Stop: this venv uses LibreSSL. Rebuild it with Python 3.12 from Homebrew or Python.org.")
+    raise SystemExit("Stop: venv uses LibreSSL. Rebuild it with Python 3.12 from Homebrew or Python.org.")
 PY
 ```
 
-Do not continue to Hugging Face metadata checks or model generation if this hard stop fails. A venv can appear active and still be the wrong venv if it was created earlier with `/usr/bin/python3`.
-
-Install MLX-LM:
+Install MLX-LM inside the venv:
 
 ```bash
 python -m pip install mlx-lm
-```
 
-Verify:
-
-```bash
 python -m pip show mlx-lm
 python -c "import mlx_lm; print('mlx-lm import ok')"
 mlx_lm.generate --help | head -n 20
 ```
 
-MLX-LM should be installed inside `~/local-llm/.venv`. Do not install MLX-LM globally. Do not run `sudo pip install mlx-lm`.
+Expected:
 
-If `mlx_lm.generate` is not found, verify the venv is active:
-
-```bash
-echo "$VIRTUAL_ENV"
-command -v python
-command -v mlx_lm.generate
+```text
+Location: /Users/openclaw/local-llm/.venv/lib/python3.12/site-packages
+mlx-lm import ok
 ```
 
-## 7. Recover if the venv Was Created with System Python
+If the path contains `.venv/lib/python3.9`, stop and rebuild the venv.
 
-If the operator already created `~/local-llm/.venv` with `/usr/bin/python3`, Python 3.9, or LibreSSL, rebuild it.
+## 7. Set the Model
 
-```bash
-deactivate 2>/dev/null || true
-
-cd ~/local-llm
-rm -rf .venv
-
-if [ -x /opt/homebrew/bin/python3.12 ]; then
-  PYTHON_BIN="/opt/homebrew/bin/python3.12"
-elif command -v python3.12 >/dev/null 2>&1; then
-  PYTHON_BIN="$(command -v python3.12)"
-else
-  echo "Python 3.12 not found. Install Homebrew Python or Python.org Python before continuing."
-  exit 1
-fi
-
-"$PYTHON_BIN" -m venv .venv
-source .venv/bin/activate
-
-python --version
-python -c "import ssl; print(ssl.OPENSSL_VERSION)"
-python -m pip install --upgrade pip
-python -m pip install mlx-lm
-```
-
-Verify the rebuilt venv before continuing:
-
-```bash
-python --version
-python -c "import ssl; print(ssl.OPENSSL_VERSION)"
-python -m pip show mlx-lm
-mlx_lm.generate --help | head -n 20
-```
-
-Do not keep debugging MLX-LM on the wrong venv. Rebuild the venv with the intended Python first. If the path contains `.venv/lib/python3.9`, the venv is still wrong.
-
-## 8. Select and Record the Qwen 3.5 9B MLX Model
-
-Set the model ID in a shell variable:
+Use a shell variable. Do not paste angle-bracket placeholders into `zsh`.
 
 ```bash
 MODEL="mlx-community/Qwen3.5-9B-OptiQ-4bit"
@@ -401,36 +212,14 @@ echo "$MODEL"
 echo "$MODEL_URL"
 ```
 
-As of April 2026, this guide uses `mlx-community/Qwen3.5-9B-OptiQ-4bit` as the default Qwen 3.5 9B MLX model for a Mac mini M4 with 16 GB unified memory.
+This is the guide's default model ID as of April 2026. It is Qwen 3.5 9B, MLX format, OptiQ 4-bit / mixed precision, Apache-2.0, and about 6 GB. Recheck the model page before future rebuilds.
 
-Why this model:
-
-- It is Qwen 3.5 9B.
-- It is an MLX model.
-- It is 4-bit/mixed precision.
-- It is about 6 GB, which fits the 16 GB Mac tier better than 27B/35B models.
-- The model card states the basic usage path works with stock `mlx-lm`.
-- It is Apache-2.0 according to the model card.
-
-Do not paste angle-bracket placeholders such as `<model-id>` into zsh. In zsh, `<...>` is treated as input redirection and causes `no such file or directory`.
-
-## 9. How This Guide Locates the Model
-
-- The default model ID is set explicitly in a shell variable.
-- The guide verifies the model with `huggingface_hub.model_info`.
-- The exact model ID and revision/SHA are recorded.
-- This avoids both stale model assumptions and unsafe angle-bracket placeholders.
-- If a better Qwen 3.5 9B MLX model becomes available later, update the `MODEL` variable and install record deliberately rather than editing commands ad hoc.
-
-Verify the selected Hugging Face model metadata:
+Verify and record the model metadata:
 
 ```bash
-MODEL="mlx-community/Qwen3.5-9B-OptiQ-4bit"
-MODEL_URL="https://huggingface.co/$MODEL"
-echo "$MODEL_URL"
-
 python - <<'PY'
 from huggingface_hub import model_info
+
 model_id = "mlx-community/Qwen3.5-9B-OptiQ-4bit"
 info = model_info(model_id)
 print("model_id:", info.modelId)
@@ -440,41 +229,9 @@ print("tags:", ", ".join(info.tags or []))
 PY
 ```
 
-If the Hugging Face metadata check fails, do not assume the model is unavailable. Check network/DNS first, then open the model URL manually from another machine if needed.
+If this prints `NotOpenSSLWarning`, stop before generation and rebuild the venv. The metadata check can succeed while the venv is still wrong.
 
-Record the exact model ID and, if available, the resolved commit SHA in the install record. This makes the local LLM baseline reproducible later.
-
-If the metadata check succeeds but prints `NotOpenSSLWarning`, stop before generation and rebuild the venv. That warning means the active venv is still using Apple/system Python or another LibreSSL-linked Python, even if the model metadata can be fetched.
-
-Check the Hugging Face cache path:
-
-```bash
-echo "${HF_HOME:-$HOME/.cache/huggingface}"
-```
-
-MLX-LM downloads model files through Hugging Face tooling. The model will normally be cached under `~/.cache/huggingface`. On a 256 GB Mac mini, keep the cache small and deliberate. Do not download several large models during first setup.
-
-## 10. What Went Wrong if zsh Says no such file or directory
-
-> If `zsh` says `no such file or directory: mlx-compatible-qwen-3.5-9b-4bit-model-id`, you pasted an angle-bracket placeholder literally.
-
-In `zsh`, angle brackets are shell input redirection. A placeholder written with brackets must never be pasted literally.
-
-Use a shell variable instead:
-
-```bash
-MODEL="mlx-community/Qwen3.5-9B-OptiQ-4bit"
-```
-
-Then always call:
-
-```bash
-mlx_lm.generate --model "$MODEL" --prompt "Reply with: local model ok"
-```
-
-## 11. Check Resources Before Download
-
-Before the generation test:
+## 8. Check Disk and Memory Before Download
 
 ```bash
 df -h /
@@ -483,11 +240,9 @@ du -sh ~/local-llm 2>/dev/null || true
 vm_stat
 ```
 
-First generation downloads the model and may take time.
+The first generation downloads several GB into the Hugging Face cache, usually under `~/.cache/huggingface`. Keep the model set small on a 256 GB Mac mini.
 
-## 12. Run Local Generation Tests
-
-Minimal test:
+## 9. Download and Run the Local Model
 
 ```bash
 MODEL="mlx-community/Qwen3.5-9B-OptiQ-4bit"
@@ -504,7 +259,7 @@ Expected:
 local model ok
 ```
 
-Practical test:
+Run one practical prompt:
 
 ```bash
 time mlx_lm.generate \
@@ -513,235 +268,39 @@ time mlx_lm.generate \
   --max-tokens 160
 ```
 
-Expected:
+The Mac should remain responsive. Do not tune large context sizes or test larger models during the first setup.
 
-```text
-The model responds without the Mac becoming unusable, without excessive swapping, and with acceptable latency.
-```
+## 10. Final Verification
 
-Do not maximize context on the first run. On a 16 GB Mac mini, prove basic stability first, then tune context and provider behavior later.
-
-Optional chat test:
+Run the repo verification script from the checked-out guide:
 
 ```bash
-mlx_lm.chat --model "$MODEL"
+./chapter05-verify.sh
 ```
 
-Type a short prompt, verify response quality, then exit the chat REPL with `Ctrl-D` or the documented exit command. Do not make the chat REPL mandatory for automation.
-
-## 13. Check Resources After Download and Generation
+Or fetch and run the current script directly:
 
 ```bash
-df -h /
-du -sh ~/.cache/huggingface 2>/dev/null || true
-du -sh ~/local-llm 2>/dev/null || true
-vm_stat
-top -l 1 | head -n 25
+REPO_RAW_BASE="https://raw.githubusercontent.com/YOUR-GITHUB-USER/mac-mini-init/main"
+curl -fsSL "$REPO_RAW_BASE/chapter05-verify.sh" | bash
 ```
 
-Notes:
+Replace `YOUR-GITHUB-USER` with the GitHub account that hosts your fork of this guide.
 
-- Model downloads can consume several GB.
-- The model cache should grow by several GB.
-- On a 256 GB Mac mini, keep the local model set small.
-- Do not pull multiple large models during the first build.
-- Record model disk usage.
-- Watch for memory pressure and swap during tests.
-- If the Mac becomes sluggish or starts heavy swapping, stop and do not test larger models.
+The script checks:
 
-## 14. Troubleshooting MLX-LM Install and First Model Run
+- runtime user and admin-group status
+- active venv path
+- Python version and SSL backend
+- MLX-LM import and package location
+- Hugging Face model metadata
+- local model cache presence
+- disk and memory summary
+- short local generation test
 
-Case 1: `brew: command not found`.
+The final result should be human-readable. If it ends with `RESULT: PASS`, Chapter 05 is complete.
 
-Cause:
-
-```text
-Homebrew is not installed or not on PATH.
-```
-
-Fix:
-
-```bash
-su - adminuser
-cd ~
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
-eval "$(/opt/homebrew/bin/brew shellenv)"
-command -v brew
-brew --version
-exit
-```
-
-Back as the runtime user:
-
-```bash
-whoami
-echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
-eval "$(/opt/homebrew/bin/brew shellenv)"
-command -v brew
-```
-
-Case 2: Python is `/usr/bin/python3`, Python 3.9, LibreSSL.
-
-Cause:
-
-```text
-The host is using Apple's system Python.
-```
-
-Fix:
-
-```bash
-su - adminuser
-eval "$(/opt/homebrew/bin/brew shellenv)"
-brew install python@3.12
-/opt/homebrew/bin/python3.12 --version
-exit
-```
-
-Back as the runtime user, verify `/opt/homebrew/bin/python3.12`, then rebuild `~/local-llm/.venv`. Or use the Python.org installer, then rebuild `~/local-llm/.venv`.
-
-Case 3: `NotOpenSSLWarning` / LibreSSL warning.
-
-Cause:
-
-```text
-The venv was likely created with Apple/system Python linked against LibreSSL.
-```
-
-Fix:
-
-```bash
-deactivate 2>/dev/null || true
-rm -rf ~/local-llm/.venv
-cd ~/local-llm
-
-if [ ! -x /opt/homebrew/bin/python3.12 ]; then
-  echo "Python 3.12 is missing. Install it first, using su - adminuser if Homebrew needs admin rights."
-  exit 1
-fi
-
-/opt/homebrew/bin/python3.12 -m venv .venv
-source .venv/bin/activate
-python --version
-python -c "import ssl; print(ssl.OPENSSL_VERSION)"
-python -m pip install --upgrade pip
-python -m pip install mlx-lm
-```
-
-Case 4: pip backtracks through many `mlx-lm` versions.
-
-Cause:
-
-```text
-Often caused by older Python compatibility constraints.
-```
-
-Fix:
-
-```text
-Use Python 3.12 and rebuild the venv.
-```
-
-Case 5: `zsh: no such file or directory: <model-id>`.
-
-Cause:
-
-```text
-An angle-bracket placeholder was pasted literally.
-```
-
-Fix:
-
-```bash
-MODEL="mlx-community/Qwen3.5-9B-OptiQ-4bit"
-mlx_lm.generate --model "$MODEL" --prompt "Reply with: local model ok" --max-tokens 20
-```
-
-Case 6: `ValueError: Model type qwen3_5 not supported`.
-
-Cause:
-
-```text
-The model downloaded, but the installed mlx-lm package does not support Qwen 3.5. This commonly happens when the venv was created with Apple/system Python 3.9, causing pip to install an older compatible mlx-lm version.
-```
-
-Confirm:
-
-```bash
-python --version
-python -c "import ssl; print(ssl.OPENSSL_VERSION)"
-python -m pip show mlx-lm
-```
-
-If Python is `3.9.x`, SSL is `LibreSSL`, or the venv path contains `.venv/lib/python3.9`, rebuild the venv with Python 3.12 before trying the model again.
-
-Fix:
-
-```bash
-deactivate 2>/dev/null || true
-rm -rf ~/local-llm/.venv
-cd ~/local-llm
-/opt/homebrew/bin/python3.12 -m venv .venv
-source .venv/bin/activate
-python --version
-python -c "import ssl; print(ssl.OPENSSL_VERSION)"
-python -m pip install --upgrade pip
-python -m pip install mlx-lm
-MODEL="mlx-community/Qwen3.5-9B-OptiQ-4bit"
-mlx_lm.generate --model "$MODEL" --prompt "Reply with: local model ok" --max-tokens 20
-```
-
-Case 7: Hugging Face download is slow or fails.
-
-Fix:
-
-```bash
-curl -I https://huggingface.co
-python - <<'PY'
-from huggingface_hub import model_info
-print(model_info("mlx-community/Qwen3.5-9B-OptiQ-4bit").modelId)
-PY
-```
-
-Then retry generation.
-
-Case 8: Mac becomes unresponsive or swaps heavily.
-
-Fix:
-
-- Stop the test.
-- Do not test larger models.
-- Consider a smaller model fallback.
-- Keep Chapter 05 baseline at Qwen 3.5 9B or smaller.
-
-## 15. Fallback if MLX-LM or Qwen 3.5 9B Setup Is Blocked
-
-Do not block the whole OpenClaw installation indefinitely.
-
-If Python 3.12, MLX-LM, or the Qwen 3.5 9B model cannot be made stable, document the failure and use a smaller or simpler fallback.
-
-For pure MLX-LM fallback, use the MLX-LM default model only to prove the runtime works:
-
-```bash
-mlx_lm.generate \
-  --prompt "Reply with: mlx-lm default model ok" \
-  --max-tokens 20
-```
-
-For OpenClaw provider integration fallback, use Ollama later because it provides a local HTTP API server. The Ollama fallback belongs to Chapter 07 provider integration, not the core MLX-LM baseline.
-
-Optional Ollama fallback reminder:
-
-```bash
-ollama --version
-ollama pull qwen2.5:7b
-ollama run qwen2.5:7b
-```
-
-Ollama is a fallback provider/server path. MLX-LM proves Apple-native local inference. Do not confuse the two.
-
-## 16. Install Record
+## 11. Install Record
 
 Record:
 
@@ -770,28 +329,130 @@ Notes:
 ## End-of-Chapter Check
 
 - [ ] Runtime user is non-admin.
-- [ ] Homebrew presence was checked.
-- [ ] If missing, Homebrew was installed or Python.org Python was selected deliberately.
-- [ ] Any Homebrew/Python package-manager work that required admin rights was done through temporary `su - adminuser`.
-- [ ] The admin shell was exited before venv creation, MLX-LM install, metadata checks, or model generation.
-- [ ] Python baseline was checked before venv creation.
-- [ ] Python 3.12 or another modern Python was selected deliberately.
-- [ ] `/usr/bin/python3` Python 3.9 + LibreSSL was not used as the guide baseline.
-- [ ] SSL backend is OpenSSL, not the Apple/system LibreSSL baseline.
-- [ ] The active venv hard stop passed before installing MLX-LM or running model tests.
-- [ ] Venv was rebuilt if it was accidentally created with system Python.
+- [ ] Admin work, if needed, was done through temporary `su - adminuser`.
+- [ ] Admin shell was exited before venv creation, MLX-LM install, metadata checks, or model generation.
+- [ ] Python 3.12 with OpenSSL was selected deliberately.
+- [ ] `/usr/bin/python3` Python 3.9 + LibreSSL was not used as the venv baseline.
 - [ ] MLX-LM is installed in `~/local-llm/.venv`.
 - [ ] No Python packages were installed with `sudo`.
-- [ ] `mlx_lm.generate --help` works.
-- [ ] Default model is recorded as `mlx-community/Qwen3.5-9B-OptiQ-4bit` or a deliberately updated equivalent.
-- [ ] Hugging Face model metadata was checked or the failure was documented.
+- [ ] Default model is set with `MODEL="mlx-community/Qwen3.5-9B-OptiQ-4bit"`.
 - [ ] Local generation test completed.
-- [ ] Disk impact was checked.
-- [ ] Memory pressure/swap behavior was checked.
-- [ ] The Mac remained responsive during model generation.
-- [ ] 27B/35B models were not used as the default on the 16 GB Mac mini.
-- [ ] Any fallback runtime/model decision was documented.
+- [ ] Disk and memory impact were checked.
+- [ ] `chapter05-verify.sh` returned `RESULT: PASS`.
 - [ ] OpenClaw provider onboarding remains deferred to Chapter 07.
+
+**TROUBLESHOOTING STARTS HERE**
+================================
+
+Everything above is the normal installation/setup path. Do not start here unless the normal path failed.
+
+## Troubleshooting
+
+### `brew: command not found`
+
+Homebrew is missing or not on `PATH`.
+
+```bash
+su - adminuser
+cd ~
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+eval "$(/opt/homebrew/bin/brew shellenv)"
+command -v brew
+brew --version
+exit
+```
+
+Back as the runtime user:
+
+```bash
+echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
+eval "$(/opt/homebrew/bin/brew shellenv)"
+command -v brew
+```
+
+### Python is `/usr/bin/python3`, Python 3.9, or LibreSSL
+
+The host is using Apple/system Python. Install Python 3.12, then rebuild the venv.
+
+```bash
+su - adminuser
+eval "$(/opt/homebrew/bin/brew shellenv)"
+brew install python@3.12
+/opt/homebrew/bin/python3.12 --version
+exit
+```
+
+Back as the runtime user:
+
+```bash
+cd ~/local-llm
+rm -rf .venv
+/opt/homebrew/bin/python3.12 -m venv .venv
+source .venv/bin/activate
+python --version
+python -c "import ssl; print(ssl.OPENSSL_VERSION)"
+python -m pip install --upgrade pip
+python -m pip install mlx-lm
+```
+
+### `NotOpenSSLWarning`
+
+The venv was likely created with Apple/system Python linked against LibreSSL. Rebuild it with Python 3.12 before running model generation.
+
+### `ValueError: Model type qwen3_5 not supported`
+
+The model downloaded, but the installed `mlx-lm` does not support Qwen 3.5. This usually means the venv was created with Apple/system Python 3.9 and pip installed a compatible but insufficient runtime.
+
+Confirm:
+
+```bash
+python --version
+python -c "import ssl; print(ssl.OPENSSL_VERSION)"
+python -m pip show mlx-lm
+```
+
+If the path contains `.venv/lib/python3.9`, rebuild the venv with Python 3.12.
+
+### `zsh: no such file or directory: <model-id>`
+
+An angle-bracket placeholder was pasted literally. In `zsh`, `<...>` is input redirection.
+
+Use:
+
+```bash
+MODEL="mlx-community/Qwen3.5-9B-OptiQ-4bit"
+mlx_lm.generate --model "$MODEL" --prompt "Reply with: local model ok" --max-tokens 20
+```
+
+### Hugging Face download is slow or fails
+
+Check DNS/internet first:
+
+```bash
+curl -I https://huggingface.co
+python - <<'PY'
+from huggingface_hub import model_info
+print(model_info("mlx-community/Qwen3.5-9B-OptiQ-4bit").modelId)
+PY
+```
+
+### Mac becomes sluggish or swaps heavily
+
+Stop the test. Do not try larger models. Keep Chapter 05 at Qwen 3.5 9B or smaller.
+
+## Fallback
+
+If MLX-LM or the Qwen 3.5 9B model cannot be made stable, document the failure and continue with Chapter 06. Use Chapter 07 to choose a supported provider path.
+
+Ollama is the practical fallback when an HTTP API server is needed later:
+
+```bash
+ollama --version
+ollama pull qwen2.5:7b
+ollama run qwen2.5:7b
+```
+
+Ollama fallback belongs to Chapter 07 provider integration, not this core MLX-LM baseline.
 
 ## References
 
