@@ -1,31 +1,20 @@
 [Back to main guide](README.md)
 
-# Chapter 04 - Install OpenClaw over SSH
+# Chapter 04 - Prepare SSH and Headless Operations
 
-This chapter installs OpenClaw on the Mac Mini from an SSH session.
+This chapter prepares the Mac Mini for a clean OpenClaw install over SSH. It stops before installing OpenClaw.
+
+The goal is to make sure the runtime user, admin escalation path, network, developer tools, Git, and GitHub dependency fetching are all clean before Chapter 05 starts.
 
 Assumptions:
 
 - Chapter 02 security bootstrap is complete.
 - Chapter 03 SSH access works with your GitHub public key.
-- You are logged in over SSH as the non-admin operating user, for example `openclaw`.
-- The admin user still exists, but OpenClaw should not be installed or run from that admin account.
+- You are connected over SSH.
+- You have a standard non-admin runtime user, for example `openclaw`.
+- You have a separate admin account, for example `mariushole`.
 
-Use the admin account only when a command genuinely needs system privileges. If the current SSH user is not an administrator, switch to the admin account with:
-
-```bash
-su - adminuser
-```
-
-Replace `adminuser` with the short name of the admin account created during Mac setup. When the admin task is done, return to the OpenClaw user with:
-
-```bash
-exit
-```
-
-Do not install OpenClaw while still inside the admin shell. The OpenClaw files, config, secrets, and LaunchAgent should belong to the standard OpenClaw user.
-
-## 1. Confirm Where You Are Logged In
+## 1. Confirm the SSH Session
 
 Run:
 
@@ -34,524 +23,263 @@ whoami
 id
 hostname
 pwd
+tty
+echo "$SSH_CONNECTION"
 ```
 
 Expected:
 
 ```text
-whoami: openclaw / your chosen operating user
-id: user is not in the admin group
+whoami: openclaw / your chosen runtime user
 pwd: /Users/openclaw or that user's home directory
+SSH_CONNECTION: not empty
 ```
 
 Record:
 
 ```text
 SSH user:
+Runtime user:
 Admin user:
 Mac hostname:
-Install date:
+Preparation date:
 ```
 
-## 2. Keep Admin Escalation Deliberate
+## 2. Confirm the Runtime User Is Non-Admin
 
-Most OpenClaw commands should run as the OpenClaw user.
+The OpenClaw runtime user should be a standard user. OpenClaw files, config, secrets, and the LaunchAgent should belong to this user.
 
-Use `su - adminuser` only for tasks like:
+Check group membership:
 
-- Installing Apple command line tools if missing.
-- Installing Homebrew or system packages if you choose the global installer path.
+```bash
+id
+groups
+```
+
+If the runtime user is in the `admin` group, stop and decide whether to create a cleaner standard user before continuing.
+
+Recommended baseline:
+
+```text
+Runtime user: openclaw
+Runtime user is admin: no
+Admin user: mariushole / your admin short name
+```
+
+## 3. Use Admin Escalation Deliberately
+
+Most commands in the next chapter should run as the non-admin runtime user.
+
+Use the admin account only for system-level tasks:
+
+- Installing Apple Xcode Command Line Tools.
+- Installing system package managers or system packages.
 - Changing firewall settings.
-- Checking system logs or launchd state that requires admin rights.
+- Rebooting the Mac Mini.
+- Checking system-level launchd or security state.
 
 Pattern:
 
 ```bash
 su - adminuser
-# run the admin-only command
+# run admin-only command
 exit
 ```
 
-Then confirm you are back as the OpenClaw user:
+Replace `adminuser` with the real admin short name, for example:
+
+```bash
+su - mariushole
+# run admin-only command
+exit
+```
+
+After leaving the admin shell, confirm you are back as the runtime user:
 
 ```bash
 whoami
+pwd
 ```
 
-## 3. Confirm Network and DNS
+Do not run the OpenClaw installer from inside the admin shell.
 
-From the SSH session:
-
-```bash
-scutil --get ComputerName
-scutil --get LocalHostName
-ifconfig | awk '/^[a-z0-9]+:/{iface=$1} /inet / && $2!="127.0.0.1"{print iface, $2}'
-route -n get default | grep interface
-curl -fsSL https://openclaw.ai >/dev/null && echo "openclaw.ai reachable"
-```
-
-If `curl` cannot reach the internet, fix DNS, routing, or firewall rules before continuing.
-
-## 4. Choose the Install Method
-
-OpenClaw's official docs currently list these relevant install paths:
-
-| Method | Use when | Notes |
-| --- | --- | --- |
-| Local prefix installer | Recommended here | Installs OpenClaw and a local Node runtime under `~/.openclaw`; no root required. |
-| Standard installer | Good for interactive personal Macs | Detects the OS, installs Node if needed, installs OpenClaw, and can run onboarding. May install Homebrew/Node globally on macOS. |
-| npm global install | Good if you already manage Node yourself | Requires Node 24 recommended or Node 22.14+. |
-| Source install | For development or pinned forks | Requires `pnpm` and a local checkout. |
-
-For this secured Mac Mini, use the local prefix installer first. It keeps the runtime owned by the OpenClaw user and avoids unnecessary admin rights.
-
-## 5. Install with the Local Prefix Installer
-
-Stay logged in as the OpenClaw user.
-
-Download the installer to a temporary file first:
-
-```bash
-cd /tmp
-curl -fsSL --proto '=https' --tlsv1.2 https://openclaw.ai/install-cli.sh -o install-openclaw-cli.sh
-chmod 700 install-openclaw-cli.sh
-```
-
-Optional but recommended: inspect the script before running it.
-
-```bash
-sed -n '1,220p' install-openclaw-cli.sh
-```
-
-Run a dry run if supported by the installer version:
-
-```bash
-./install-openclaw-cli.sh --help
-```
-
-Install OpenClaw under the default prefix:
-
-```bash
-./install-openclaw-cli.sh --prefix "$HOME/.openclaw" --version latest
-```
-
-If you want onboarding to run immediately:
-
-```bash
-./install-openclaw-cli.sh --prefix "$HOME/.openclaw" --version latest --onboard
-```
-
-The local prefix installer is designed to place OpenClaw under `~/.openclaw`, install a local Node runtime, and write an `openclaw` wrapper under `~/.openclaw/bin`.
-
-## 6. Add OpenClaw to PATH
-
-Add the local OpenClaw bin directory to your shell startup file.
-
-For zsh:
-
-```bash
-grep -q 'HOME/.openclaw/bin' ~/.zshrc 2>/dev/null || printf '\nexport PATH="$HOME/.openclaw/bin:$PATH"\n' >> ~/.zshrc
-export PATH="$HOME/.openclaw/bin:$PATH"
-```
-
-For bash:
-
-```bash
-grep -q 'HOME/.openclaw/bin' ~/.bashrc 2>/dev/null || printf '\nexport PATH="$HOME/.openclaw/bin:$PATH"\n' >> ~/.bashrc
-export PATH="$HOME/.openclaw/bin:$PATH"
-```
-
-Confirm:
-
-```bash
-command -v openclaw
-openclaw --version
-```
-
-If `openclaw` is still not found:
-
-```bash
-echo "$PATH"
-ls -la "$HOME/.openclaw/bin"
-```
-
-## 7. Run Initial Health Checks
+## 4. Confirm Hostname, Shell, and Home Directory
 
 Run:
 
 ```bash
-openclaw doctor
-openclaw --version
-```
-
-Fresh installs commonly report two things here:
-
-- Bundled plugin runtime dependencies are missing.
-- Gateway config has not been initialized yet.
-
-If `doctor` asks to install missing bundled plugin runtime deps, choose **Yes**. Those packages are runtime dependencies for bundled plugins such as Bedrock, browser, Microsoft TTS, and MCP support. Installing them is normal.
-
-If `doctor` says:
-
-```text
-gateway.mode is unset; gateway start will be blocked.
-Gateway auth is off or missing a token.
-Generate and configure a gateway token now?
-```
-
-choose **Yes** for the token prompt.
-
-What this means:
-
-- `gateway.mode` tells OpenClaw this host is allowed to run a local gateway.
-- OpenClaw refuses to guess `local` if the config exists but the mode is missing, because that could hide a broken or overwritten config.
-- The gateway token is the shared secret clients must present when talking to the gateway, including loopback setups.
-- Token auth is recommended even when the gateway binds only to `127.0.0.1`, because browser UIs, tunnels, local processes, and future LAN exposure all become safer when auth is already in place.
-
-For this Mac Mini guide, the right baseline is:
-
-```text
-gateway.mode: local
-gateway.bind: loopback
-gateway.auth: token enabled
-```
-
-Repair it directly if onboarding did not create the config yet:
-
-```bash
-openclaw config set gateway.mode local
-openclaw config set gateway.bind loopback
-openclaw doctor --fix
-```
-
-Then verify:
-
-```bash
-openclaw config get gateway.mode
-openclaw config get gateway.bind
-openclaw doctor
+scutil --get ComputerName
+scutil --get LocalHostName
+echo "$SHELL"
+dscl . -read /Users/"$(whoami)" UserShell NFSHomeDirectory
+pwd
 ```
 
 Expected:
 
 ```text
-gateway.mode: local
-gateway.bind: loopback
-doctor no longer blocks gateway startup on missing mode/auth
+ComputerName and LocalHostName match your setup notes.
+UserShell is a normal shell such as /bin/zsh or /bin/bash.
+NFSHomeDirectory points to /Users/<runtime-user>.
 ```
 
-If the token prompt appears again, answer **Yes** again unless you are deliberately managing `gateway.auth.token` through a SecretRef or environment variable. Do not choose **No** on a normal home Mac Mini install; it leaves the gateway without the recommended auth baseline.
+Fix account or hostname surprises before installing OpenClaw.
 
-If `doctor` reports PATH or Node issues, fix those before installing a background service.
+## 5. Confirm Network, Route, DNS, and Internet
 
-## 8. Onboard OpenClaw
-
-Run onboarding as the OpenClaw user:
+Run:
 
 ```bash
-openclaw onboard --mode local
+ifconfig | awk '/^[a-z0-9]+:/{iface=$1} /inet / && $2!="127.0.0.1"{print iface, $2}'
+route -n get default | grep interface
+scutil --dns | sed -n '1,80p'
+ping -c 3 github.com
+curl -fsSL https://openclaw.ai >/dev/null && echo "openclaw.ai reachable"
+curl -fsSL https://github.com >/dev/null && echo "github.com reachable"
 ```
 
-For a secured home-network baseline, choose settings that keep the gateway local:
-
-```text
-Gateway mode: local
-Gateway bind: loopback / 127.0.0.1
-Gateway port: 18789 unless you need a different local port
-Gateway auth: token
-Channels: configure only what you intend to use
-DM policy: pairing or allowlist, not open
-Workspace: ~/.openclaw/workspace
-```
-
-If onboarding asks to install the daemon or service, accept only if it will install for the current OpenClaw user. Do not install it as the admin user.
-
-If `openclaw onboard --mode local` is not supported by your installed version, run:
-
-```bash
-openclaw onboard
-openclaw config set gateway.mode local
-openclaw config set gateway.bind loopback
-openclaw doctor --fix
-```
-
-## 9. Store Provider Secrets for the Daemon
-
-For a long-lived gateway host, API keys are usually the most predictable model-provider setup.
-
-Create the OpenClaw config directory if needed:
-
-```bash
-mkdir -p ~/.openclaw
-chmod 700 ~/.openclaw
-```
-
-Store provider keys in `~/.openclaw/.env` so the daemon can read them:
-
-```bash
-umask 077
-nano ~/.openclaw/.env
-```
-
-Example:
-
-```text
-OPENAI_API_KEY=replace-me
-ANTHROPIC_API_KEY=replace-me
-```
-
-Then lock down permissions:
-
-```bash
-chmod 600 ~/.openclaw/.env
-```
-
-Do not put API keys in this repository.
-
-Check model auth:
-
-```bash
-openclaw models status
-openclaw doctor
-```
-
-## 10. Start the Gateway Manually First
-
-Before installing the background service, start the gateway manually:
-
-```bash
-openclaw gateway --port 18789
-```
-
-In a second SSH session to the Mac Mini, check:
-
-```bash
-openclaw gateway status
-openclaw status
-```
-
-If you need to stop the foreground gateway, press `Ctrl-C` in the first session.
-
-Default bind mode is loopback, which is what you want at this stage. Do not bind OpenClaw to `0.0.0.0` in this chapter.
-
-## 11. Test from Your Client with an SSH Tunnel
-
-From your client machine, open a tunnel:
-
-```bash
-ssh -N -L 18789:127.0.0.1:18789 openclaw@<mac-mini-ip>
-```
-
-Then on the client, open:
-
-```text
-http://127.0.0.1:18789
-```
-
-Or test with:
-
-```bash
-curl -fsS http://127.0.0.1:18789 >/dev/null && echo "gateway reachable through tunnel"
-```
-
-An SSH tunnel keeps the OpenClaw gateway bound locally on the Mac Mini while still letting you administer it from your workstation.
-
-## 12. Install the Gateway LaunchAgent
-
-Once manual startup works, install the managed gateway for the OpenClaw user:
-
-```bash
-openclaw gateway install
-openclaw gateway status
-```
-
-If onboarding already installed the daemon, use:
-
-```bash
-openclaw gateway status
-openclaw gateway restart
-```
-
-Operational commands:
-
-```bash
-openclaw gateway status
-openclaw gateway status --deep
-openclaw gateway restart
-openclaw gateway stop
-openclaw logs --follow
-openclaw doctor
-```
-
-OpenClaw's docs identify the default macOS LaunchAgent label as `ai.openclaw.gateway`.
-
-## 13. Reboot and Verify
-
-Reboot from the admin account if the OpenClaw user cannot:
-
-```bash
-su - adminuser
-sudo shutdown -r now
-```
-
-Reconnect over SSH after the Mac Mini returns:
-
-```bash
-ssh openclaw@<mac-mini-ip>
-```
-
-Verify:
-
-```bash
-openclaw gateway status
-openclaw doctor
-openclaw logs --follow
-```
-
-If the gateway did not start, check whether the LaunchAgent is installed under the OpenClaw user's context and rerun:
-
-```bash
-openclaw gateway install
-openclaw gateway restart
-openclaw gateway status --deep
-```
-
-## 14. Keep the Firewall Conservative
-
-At this stage, the OpenClaw gateway should be loopback-only. That means the macOS firewall does not need a new LAN allow rule for OpenClaw yet.
-
-Confirm SSH is still the only intended remote entry point:
-
-```bash
-sudo /usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate
-sudo /usr/libexec/ApplicationFirewall/socketfilterfw --getstealthmode
-sudo lsof -nP -iTCP -sTCP:LISTEN
-```
-
-If the OpenClaw user cannot run `sudo`, switch to the admin user:
-
-```bash
-su - adminuser
-sudo /usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate
-sudo /usr/libexec/ApplicationFirewall/socketfilterfw --getstealthmode
-sudo lsof -nP -iTCP -sTCP:LISTEN
-exit
-```
-
-Expected:
-
-```text
-ssh listens on port 22 for LAN administration.
-OpenClaw listens on 127.0.0.1:18789 or another loopback address.
-No public router port forward points to OpenClaw.
-```
-
-## 15. Alternative: Standard Installer
-
-Use this only if you are comfortable with the installer managing system prerequisites:
-
-```bash
-curl -fsSL --proto '=https' --tlsv1.2 https://openclaw.ai/install.sh -o /tmp/install-openclaw.sh
-chmod 700 /tmp/install-openclaw.sh
-/tmp/install-openclaw.sh --no-onboard
-```
-
-Then run:
-
-```bash
-openclaw onboard
-openclaw gateway install
-openclaw gateway status
-```
-
-The standard installer may install Homebrew if missing and install Node 24 if needed. If it asks for admin credentials and you are logged in as the non-admin OpenClaw user, stop and decide whether you really want the global path. The local prefix installer is usually cleaner for this guide.
-
-## 16. Alternative: npm Global Install
-
-Use this only if you already manage Node yourself.
-
-Check Node:
-
-```bash
-node -v
-npm -v
-```
-
-OpenClaw currently recommends Node 24. Node 22.14+ is supported.
-
-Install:
-
-```bash
-npm install -g openclaw@latest
-openclaw onboard --install-daemon
-```
-
-If `openclaw` is not found afterward:
-
-```bash
-npm prefix -g
-echo "$PATH"
-export PATH="$(npm prefix -g)/bin:$PATH"
-```
-
-Add that PATH export to `~/.zshrc` or `~/.bashrc` if needed.
-
-## 17. Update Procedure
-
-Run updates as the OpenClaw user:
-
-```bash
-openclaw update --dry-run
-openclaw update
-openclaw doctor
-openclaw gateway restart
-openclaw health
-```
-
-If the update fails because the installation path is not writable, confirm you did not accidentally install OpenClaw as the admin user.
-
-## 18. Install Record
+If these fail, fix DNS, routing, or firewall rules before continuing. Do not debug OpenClaw installer failures on top of a broken network.
 
 Record:
 
 ```text
-OpenClaw user:
-Install method: local prefix / standard installer / npm / source
-Install prefix:
-OpenClaw version:
-Node version:
-Gateway port:
-Gateway bind:
-LaunchAgent installed:
-Provider secrets location:
-SSH tunnel command:
-Admin user used for:
+Mac Mini IP:
+Default interface:
+DNS works:
+GitHub reachable:
+openclaw.ai reachable:
 ```
 
-## End-of-Chapter Check
+## 6. Verify Xcode Command Line Tools and Git
 
-- [ ] OpenClaw is installed as the non-admin operating user.
-- [ ] Admin shell use was limited to system-level tasks.
-- [ ] `openclaw --version` works over SSH.
-- [ ] `openclaw doctor` runs.
-- [ ] Provider secrets are stored outside the repository.
-- [ ] The gateway starts manually.
-- [ ] The gateway is installed as a user LaunchAgent.
-- [ ] The gateway survives reboot.
-- [ ] Gateway access is loopback-only or otherwise deliberately documented.
-- [ ] Remote administration works through SSH or an SSH tunnel.
+Check:
 
-## References
+```bash
+xcode-select -p
+git --version
+```
 
-- [OpenClaw install overview](https://docs.openclaw.ai/install)
-- [OpenClaw installer internals](https://docs.openclaw.ai/install/installer)
-- [OpenClaw Node.js requirements](https://docs.openclaw.ai/install/node)
-- [OpenClaw gateway runbook](https://docs.openclaw.ai/gateway)
-- [OpenClaw authentication](https://docs.openclaw.ai/gateway/authentication)
-- [OpenClaw updating](https://docs.openclaw.ai/install/updating)
+Expected:
+
+```text
+/Library/Developer/CommandLineTools
+git version ...
+```
+
+If both commands work, continue to the GitHub dependency rewrite section.
+
+## 7. Install Xcode Command Line Tools over SSH
+
+If Git or developer tools are missing, macOS may print:
+
+```text
+xcode-select: error: No developer tools were found and no install could be requested
+possibly because there is no active GUI session
+```
+
+This means the Apple developer tools are missing and `xcode-select --install` cannot show the GUI prompt from the current headless SSH session.
+
+First try the normal installer from the admin account:
+
+```bash
+su - mariushole
+sudo xcode-select --install
+```
+
+If a GUI prompt appears on the Mac Mini, complete it there. If no GUI prompt is available, use the headless `softwareupdate` method from the same admin shell:
+
+```bash
+sudo touch /tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
+
+softwareupdate --list --all | sed -n '/Command Line Tools/,+3p'
+
+CLT_LABEL="$(softwareupdate --list --all 2>/dev/null | awk -F': ' '/Label: Command Line Tools for Xcode/ {print $2}' | tail -1)"
+
+echo "$CLT_LABEL"
+
+sudo softwareupdate --install "$CLT_LABEL" --verbose
+
+sudo rm -f /tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
+
+sudo xcode-select --switch /Library/Developer/CommandLineTools
+```
+
+Verify while still in the admin shell:
+
+```bash
+xcode-select -p
+git --version
+```
+
+Expected:
+
+```text
+/Library/Developer/CommandLineTools
+git version ...
+```
+
+Return to the OpenClaw runtime user:
+
+```bash
+exit
+whoami
+```
+
+Expected:
+
+```text
+openclaw / your runtime user
+```
+
+## 8. Force Public GitHub Dependencies over HTTPS
+
+Some npm dependencies may reference public GitHub repositories through SSH URLs, for example:
+
+```text
+ssh://git@github.com/whiskeysockets/libsignal-node.git
+```
+
+Do not put a GitHub private key on the OpenClaw host just to fetch public dependencies. Configure Git for the runtime user to rewrite GitHub SSH URLs to HTTPS.
+
+Run this as the runtime user, not the admin user:
+
+```bash
+git config --global url."https://github.com/".insteadOf ssh://git@github.com/
+git config --global url."https://github.com/".insteadOf git@github.com:
+git config --global --get-regexp '^url\..*insteadOf'
+```
+
+Test:
+
+```bash
+git ls-remote https://github.com/whiskeysockets/libsignal-node.git >/dev/null && echo "GitHub HTTPS dependency fetch works"
+```
+
+If this fails, fix GitHub HTTPS access before installing OpenClaw.
+
+## 9. What Not to Do Yet
+
+- Do not rerun the OpenClaw installer as the admin user.
+- Do not install the OpenClaw LaunchAgent yet.
+- Do not bind the OpenClaw gateway to `0.0.0.0`.
+- Do not put GitHub private keys on this host unless explicitly needed.
+- Do not proceed to long-lived gateway setup until the runtime account and prerequisites are clean.
+
+## Ready for Chapter 05 Checklist
+
+- [ ] SSH login works.
+- [ ] Runtime user is confirmed.
+- [ ] Runtime user is non-admin.
+- [ ] Admin user exists and works for system-level tasks.
+- [ ] Network, DNS, and internet access work.
+- [ ] Xcode Command Line Tools are installed.
+- [ ] Git works.
+- [ ] GitHub public dependency fetch works over HTTPS.
+- [ ] You are back in the non-admin runtime account.
+- [ ] No OpenClaw LaunchAgent has been installed yet.
 
 ---
 
 Previous: [Chapter 03 - SSH Remote Access](chapter03.md)
-Next: [Chapter 05 - OpenClaw Configuration and Channels](chapter05.md)
+Next: [Chapter 05 - Install and Configure OpenClaw](chapter05.md)
 [Back to main guide](README.md)

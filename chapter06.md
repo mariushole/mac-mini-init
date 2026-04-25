@@ -14,7 +14,6 @@ Planned scope:
 
 ---
 
-Previous: [Chapter 05 - OpenClaw Configuration and Channels](chapter05.md)
+Previous: [Chapter 05 - Install and Configure OpenClaw](chapter05.md)
 Next: [Chapter 07 - Home Network Access](chapter07.md)  
 [Back to main guide](README.md)
-

@@ -455,5 +455,5 @@ Router: no public port forward to Mac Mini
 ---
 
 Previous: [Chapter 02 - Security Bootstrap](chapter02.md)
-Next: [Chapter 04 - Install OpenClaw over SSH](chapter04.md)
+Next: [Chapter 04 - Prepare SSH and Headless Operations](chapter04.md)
 [Back to main guide](README.md)
