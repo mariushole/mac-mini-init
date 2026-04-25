@@ -184,28 +184,96 @@ openclaw doctor
 openclaw --version
 ```
 
-If `doctor` reports missing config, continue with onboarding. If it reports PATH or Node issues, fix those before installing a background service.
+Fresh installs commonly report two things here:
+
+- Bundled plugin runtime dependencies are missing.
+- Gateway config has not been initialized yet.
+
+If `doctor` asks to install missing bundled plugin runtime deps, choose **Yes**. Those packages are runtime dependencies for bundled plugins such as Bedrock, browser, Microsoft TTS, and MCP support. Installing them is normal.
+
+If `doctor` says:
+
+```text
+gateway.mode is unset; gateway start will be blocked.
+Gateway auth is off or missing a token.
+Generate and configure a gateway token now?
+```
+
+choose **Yes** for the token prompt.
+
+What this means:
+
+- `gateway.mode` tells OpenClaw this host is allowed to run a local gateway.
+- OpenClaw refuses to guess `local` if the config exists but the mode is missing, because that could hide a broken or overwritten config.
+- The gateway token is the shared secret clients must present when talking to the gateway, including loopback setups.
+- Token auth is recommended even when the gateway binds only to `127.0.0.1`, because browser UIs, tunnels, local processes, and future LAN exposure all become safer when auth is already in place.
+
+For this Mac Mini guide, the right baseline is:
+
+```text
+gateway.mode: local
+gateway.bind: loopback
+gateway.auth: token enabled
+```
+
+Repair it directly if onboarding did not create the config yet:
+
+```bash
+openclaw config set gateway.mode local
+openclaw config set gateway.bind loopback
+openclaw doctor --fix
+```
+
+Then verify:
+
+```bash
+openclaw config get gateway.mode
+openclaw config get gateway.bind
+openclaw doctor
+```
+
+Expected:
+
+```text
+gateway.mode: local
+gateway.bind: loopback
+doctor no longer blocks gateway startup on missing mode/auth
+```
+
+If the token prompt appears again, answer **Yes** again unless you are deliberately managing `gateway.auth.token` through a SecretRef or environment variable. Do not choose **No** on a normal home Mac Mini install; it leaves the gateway without the recommended auth baseline.
+
+If `doctor` reports PATH or Node issues, fix those before installing a background service.
 
 ## 8. Onboard OpenClaw
 
 Run onboarding as the OpenClaw user:
 
 ```bash
-openclaw onboard
+openclaw onboard --mode local
 ```
 
 For a secured home-network baseline, choose settings that keep the gateway local:
 
 ```text
+Gateway mode: local
 Gateway bind: loopback / 127.0.0.1
 Gateway port: 18789 unless you need a different local port
-Gateway auth: enabled
+Gateway auth: token
 Channels: configure only what you intend to use
 DM policy: pairing or allowlist, not open
 Workspace: ~/.openclaw/workspace
 ```
 
 If onboarding asks to install the daemon or service, accept only if it will install for the current OpenClaw user. Do not install it as the admin user.
+
+If `openclaw onboard --mode local` is not supported by your installed version, run:
+
+```bash
+openclaw onboard
+openclaw config set gateway.mode local
+openclaw config set gateway.bind loopback
+openclaw doctor --fix
+```
 
 ## 9. Store Provider Secrets for the Daemon
 
