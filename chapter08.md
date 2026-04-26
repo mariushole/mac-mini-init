@@ -151,6 +151,12 @@ Expected:
 "ok":true
 ```
 
+`getMe` proves the bot token works.
+
+The `id` returned by `getMe` is the bot's ID. Do not use it in `allowFrom`. The operator/user ID comes from `message.from.id` in `getUpdates` after you send a DM to the bot.
+
+The bot ID is not the Telegram allowlist ID.
+
 If this fails, check:
 
 - token was copied correctly
@@ -172,6 +178,17 @@ If a webhook URL is set and you want polling, delete it:
 curl -fsS "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/deleteWebhook"
 ```
 
+Optional explicit form that preserves pending updates:
+
+```bash
+TELEGRAM_BOT_TOKEN="$(cat ~/.openclaw/secrets/telegram-bot-token)"
+
+curl -fsS "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/deleteWebhook?drop_pending_updates=false" \
+| python3 -m json.tool
+```
+
+`drop_pending_updates=false` preserves pending updates. Use `drop_pending_updates=true` only if you intentionally want to discard old updates. For this guide, prefer clearing manual test updates later with `getUpdates?offset=...` after the operator ID has been recorded.
+
 Then verify:
 
 ```bash
@@ -188,12 +205,24 @@ url is empty
 
 Use manual `getUpdates` before enabling the OpenClaw Telegram channel, or stop the OpenClaw gateway while manually inspecting updates. Do not have OpenClaw polling and manual `getUpdates` troubleshooting compete for the same bot token.
 
-From the Telegram app, send a direct message to the bot.
+Load the token for this shell:
+
+```bash
+TELEGRAM_BOT_TOKEN="$(cat ~/.openclaw/secrets/telegram-bot-token)"
+```
+
+Open the Telegram bot directly and send:
+
+```text
+/start
+hello openclaw test
+```
 
 Then check pending updates:
 
 ```bash
-curl -fsS "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getUpdates"
+curl -fsS "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getUpdates" \
+| python3 -m json.tool
 ```
 
 Expected:
@@ -203,16 +232,153 @@ Expected:
 the response includes a message from your Telegram account
 ```
 
-Record the numeric user ID from `message.from.id`:
+Look for a message shaped like this:
 
-```text
-Telegram operator username:
-Telegram numeric user ID:
-Allowed Telegram users:
-Allowed Telegram chats:
+```json
+{
+  "message": {
+    "from": {
+      "id": 123456789,
+      "is_bot": false,
+      "first_name": "Example",
+      "username": "example_user"
+    },
+    "chat": {
+      "id": 123456789,
+      "type": "private"
+    },
+    "text": "hello openclaw test"
+  }
+}
 ```
 
-Do not use `@username` as the durable allowlist entry. Use the numeric Telegram user ID.
+Extract the relevant IDs without `jq`:
+
+```bash
+curl -fsS "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getUpdates" \
+| python3 -c '
+import json, sys
+
+data = json.load(sys.stdin)
+
+for update in data.get("result", []):
+    msg = update.get("message") or update.get("edited_message") or {}
+    user = msg.get("from", {})
+    chat = msg.get("chat", {})
+    text = msg.get("text", "")
+
+    print("update_id:", update.get("update_id"))
+    print("from.id:", user.get("id"))
+    print("from.username:", user.get("username"))
+    print("chat.id:", chat.get("id"))
+    print("chat.type:", chat.get("type"))
+    print("text:", text)
+    print("---")
+'
+```
+
+Expected example output:
+
+```text
+from.id: 123456789
+from.username: example_user
+chat.id: 123456789
+chat.type: private
+```
+
+Record:
+
+```text
+Telegram operator username: value from message.from.username
+Telegram numeric user ID: value from message.from.id
+Allowed Telegram users: same numeric user ID
+Allowed Telegram chats: for DM-only, same as message.chat.id
+Chat type: private
+```
+
+Use `from.id` as the durable `allowFrom` value.
+
+For a private DM-only setup, `chat.id` is normally the same value and can be recorded as the allowed private chat.
+
+Do not use `@username` as the durable allowlist entry.
+
+### If getUpdates Returns an Empty Result
+
+If `getUpdates` returns:
+
+```json
+{"ok": true, "result": []}
+```
+
+check:
+
+- You sent the message to your bot, not to BotFather.
+- You pressed or sent `/start` in the bot chat.
+- You sent a new message after checking `getUpdates`.
+- No other process is already polling the same bot token.
+- OpenClaw Telegram integration is not already running with the same bot token.
+
+If OpenClaw may already be polling, stop the gateway temporarily:
+
+```bash
+openclaw gateway stop
+```
+
+Then send a new Telegram message to the bot and rerun:
+
+```bash
+curl -fsS "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getUpdates" \
+| python3 -m json.tool
+```
+
+After recording the numeric user ID, restart OpenClaw later in the correct step.
+
+### Clear Manual Test Updates Before OpenClaw Polling
+
+Manual `getUpdates` calls are useful before OpenClaw is enabled, but the bot may still have old `/start` or test messages pending. Clear those updates before starting OpenClaw Telegram polling so the first OpenClaw run does not process old manual test messages.
+
+Only clear updates after you have recorded the numeric Telegram user ID.
+
+```bash
+TELEGRAM_BOT_TOKEN="$(cat ~/.openclaw/secrets/telegram-bot-token)"
+
+LAST_UPDATE_ID="$(curl -fsS "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getUpdates" \
+| python3 -c '
+import json, sys
+
+data = json.load(sys.stdin)
+results = data.get("result", [])
+
+if not results:
+    print("")
+else:
+    print(results[-1]["update_id"])
+')"
+
+if [ -n "$LAST_UPDATE_ID" ]; then
+  NEXT_OFFSET=$((LAST_UPDATE_ID + 1))
+  curl -fsS "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getUpdates?offset=${NEXT_OFFSET}" \
+  | python3 -m json.tool
+else
+  echo "No pending Telegram updates to clear"
+fi
+```
+
+Verify:
+
+```bash
+curl -fsS "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getUpdates" \
+| python3 -m json.tool
+```
+
+Expected:
+
+```json
+{
+  "ok": true,
+  "result": []
+}
+```
 
 ## 7. Configure OpenClaw Telegram Channel in openclaw.json
 
@@ -221,6 +387,7 @@ Back up the OpenClaw config:
 ```bash
 cp ~/.openclaw/openclaw.json ~/.openclaw/openclaw.json.bak.$(date +%Y%m%d-%H%M%S)
 chmod 600 ~/.openclaw/openclaw.json*
+python3 -m json.tool ~/.openclaw/openclaw.json >/tmp/openclaw-current.json
 ```
 
 Get the runtime user's home directory:
@@ -231,7 +398,11 @@ test -n "$HOME_DIR" || HOME_DIR="$(cd ~ && pwd)"
 echo "$HOME_DIR"
 ```
 
+The `tokenFile` path in JSON must use the actual runtime user's home path. JSON does not expand `~` or `$HOME`.
+
 ### Bootstrap Config: Pairing
+
+Do not replace the whole `openclaw.json` with the snippets below. Merge only the `channels.telegram` block into the existing config. Preserve existing `gateway`, `models`, `agents`, `wizard`, and `meta` blocks from earlier chapters.
 
 Use pairing for the first direct-message contact:
 
@@ -259,19 +430,39 @@ Replace `/Users/openclaw` with the value of `$HOME_DIR`.
 
 The `groups` block keeps mention behavior explicit if the bot is accidentally added to a group. Do not add the bot to groups during the first DM-only setup.
 
-Open the config and merge the `channels.telegram` block carefully:
+Preferred merge helper:
 
 ```bash
-nano ~/.openclaw/openclaw.json
-```
+HOME_DIR="$(dscl . -read "/Users/$(whoami)" NFSHomeDirectory 2>/dev/null | awk '{print $2}')"
+test -n "$HOME_DIR" || HOME_DIR="$(cd ~ && pwd)"
 
-Do not replace unrelated `models`, `gateway`, `agents`, or provider configuration from earlier chapters.
+python3 - <<PY
+import json
+from pathlib import Path
 
-Validate JSON syntax:
+config_path = Path.home() / ".openclaw" / "openclaw.json"
+data = json.loads(config_path.read_text())
 
-```bash
+data.setdefault("channels", {})
+data["channels"]["telegram"] = {
+    "enabled": True,
+    "tokenFile": f"{Path.home()}/.openclaw/secrets/telegram-bot-token",
+    "dmPolicy": "pairing",
+    "groups": {
+        "*": {
+            "requireMention": True
+        }
+    },
+    "configWrites": False
+}
+
+config_path.write_text(json.dumps(data, indent=2) + "\n")
+PY
+
 python3 -m json.tool ~/.openclaw/openclaw.json >/dev/null && echo "openclaw.json valid"
 ```
+
+This creates or replaces only `channels.telegram`. It preserves existing `gateway`, `models`, `agents`, `wizard`, and `meta`.
 
 ## 8. Restart Gateway and Check Telegram Diagnostics
 
@@ -316,8 +507,11 @@ openclaw pairing list telegram
 Approve the expected code:
 
 ```bash
-openclaw pairing approve telegram <CODE>
+PAIRING_CODE="replace-with-code-from-pairing-list"
+openclaw pairing approve telegram "$PAIRING_CODE"
 ```
+
+Do not paste angle-bracket code placeholders into `zsh`. Replace the variable value first.
 
 Pairing codes expire after 1 hour. If the code changed, rerun:
 
@@ -330,6 +524,14 @@ Do not approve unknown or unexpected pairings.
 ## 10. Harden to Numeric Allowlist
 
 After the first operator's numeric Telegram user ID is known, switch from pairing to allowlist.
+
+Example only:
+
+```bash
+TELEGRAM_USER_ID="94777959"
+```
+
+Replace the example value with the numeric value from `message.from.id`. Do not use `@username`. `allowFrom` must contain numeric Telegram user IDs as strings.
 
 Use this end-state for the first build:
 
@@ -364,10 +566,51 @@ Replace:
 123456789 -> your numeric Telegram user ID
 ```
 
-Validate and restart:
+Preferred allowlist merge helper:
 
 ```bash
+TELEGRAM_USER_ID="123456789"
+
+python3 - <<PY
+import json
+from pathlib import Path
+
+telegram_user_id = "${TELEGRAM_USER_ID}"
+
+if not telegram_user_id.isdigit():
+    raise SystemExit("TELEGRAM_USER_ID must be a numeric Telegram user ID")
+
+config_path = Path.home() / ".openclaw" / "openclaw.json"
+data = json.loads(config_path.read_text())
+
+data.setdefault("channels", {})
+data["channels"]["telegram"] = {
+    "enabled": True,
+    "tokenFile": f"{Path.home()}/.openclaw/secrets/telegram-bot-token",
+    "dmPolicy": "allowlist",
+    "allowFrom": [telegram_user_id],
+    "groupPolicy": "disabled",
+    "groups": {
+        "*": {
+            "requireMention": True
+        }
+    },
+    "configWrites": False,
+    "actions": {
+        "deleteMessage": False,
+        "sticker": False
+    }
+}
+
+config_path.write_text(json.dumps(data, indent=2) + "\n")
+PY
+
 python3 -m json.tool ~/.openclaw/openclaw.json >/dev/null && echo "openclaw.json valid"
+```
+
+Restart and diagnose:
+
+```bash
 openclaw gateway restart
 sleep 3
 openclaw doctor
@@ -458,6 +701,100 @@ If the bot receives messages but OpenClaw does not:
 - run `openclaw channels --channel telegram 2>/dev/null || openclaw channels`
 - check OpenClaw logs
 
+Diagnostics order after enabling Telegram:
+
+```bash
+openclaw doctor
+openclaw channels --channel telegram 2>/dev/null || openclaw channels
+openclaw pairing list telegram 2>/dev/null || true
+tail -n 120 ~/.openclaw/logs/gateway.log 2>/dev/null || true
+```
+
+Then send a Telegram DM to the bot.
+
+### `getMe` works but `getUpdates` is empty
+
+Cause:
+
+- The bot has not received a visible message.
+- `/start` was not sent.
+- The test message was sent to BotFather instead of the bot.
+- OpenClaw or another process already consumed the updates.
+
+Fix:
+
+```bash
+openclaw gateway stop
+
+TELEGRAM_BOT_TOKEN="$(cat ~/.openclaw/secrets/telegram-bot-token)"
+
+curl -fsS "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getUpdates" \
+| python3 -m json.tool
+```
+
+Then DM the bot again with:
+
+```text
+/start
+hello openclaw test
+```
+
+Then rerun `getUpdates`.
+
+### OpenClaw does not respond after manual getUpdates worked
+
+Cause:
+
+- Manual polling and OpenClaw polling may be competing.
+- `channels.telegram` may not be enabled.
+- The token path may be wrong.
+- `dmPolicy` may be blocking the sender.
+- The OpenClaw gateway may need restart.
+
+Fix:
+
+```bash
+python3 -m json.tool ~/.openclaw/openclaw.json >/dev/null && echo "json ok"
+openclaw gateway restart
+sleep 3
+openclaw doctor
+openclaw channels --channel telegram 2>/dev/null || openclaw channels
+tail -n 120 ~/.openclaw/logs/gateway.log 2>/dev/null || true
+```
+
+### `dmPolicy: allowlist` blocks all DMs
+
+Cause:
+
+- `allowFrom` is missing.
+- `allowFrom` is empty.
+- `allowFrom` contains `@username` instead of a numeric Telegram user ID.
+- The bot ID from `getMe` was used instead of `message.from.id`.
+
+Fix:
+
+- Use `message.from.id`.
+- Set `allowFrom` to a list containing the numeric Telegram user ID as a string.
+
+Example:
+
+```json
+"allowFrom": ["123456789"]
+```
+
+### Pairing code command fails in zsh
+
+Cause:
+
+- A literal angle-bracket code placeholder was pasted into `zsh`.
+
+Fix:
+
+```bash
+PAIRING_CODE="replace-with-code-from-pairing-list"
+openclaw pairing approve telegram "$PAIRING_CODE"
+```
+
 If pairing does not appear:
 
 ```bash
@@ -478,15 +815,23 @@ Record:
 ```text
 Telegram bot display name:
 Telegram bot username:
+Bot ID from getMe:
+Bot username from getMe:
+Telegram operator username from getUpdates:
+Telegram numeric user ID from message.from.id:
+Telegram private chat ID from message.chat.id:
 Telegram token location: ~/.openclaw/secrets/telegram-bot-token
 Token file mode:
+Last manual update ID cleared:
 Webhook active: yes/no
 Polling mode: yes/no
+Telegram config phase: pairing / allowlist
 Bootstrap dmPolicy:
 Hardened dmPolicy:
 Allowed Telegram numeric user IDs:
 Groups enabled: no
 OpenClaw Telegram config path:
+OpenClaw Telegram diagnostics result:
 OpenClaw local provider:
 Test date:
 Notes:
@@ -501,12 +846,21 @@ Notes:
 - [ ] Token file is a regular file, not a symlink.
 - [ ] Token file is mode `600`.
 - [ ] `getMe` returns `"ok":true`.
+- [ ] `getMe` was understood as bot identity only.
 - [ ] No webhook is active for polling-first setup.
+- [ ] Operator sent `/start` and a test message to the bot.
 - [ ] Manual `getUpdates` was used only before enabling OpenClaw polling or while gateway was stopped.
-- [ ] Numeric Telegram user ID was recorded.
+- [ ] Numeric Telegram user ID was extracted from `message.from.id`.
+- [ ] Private chat ID was extracted from `message.chat.id`.
+- [ ] `@username` was not used as durable allowlist entry.
+- [ ] Manual test updates were cleared with `getUpdates` offset after recording the operator ID.
+- [ ] `channels.telegram` was merged into `openclaw.json` without deleting existing `gateway`, `models`, `agents`, `wizard`, or `meta` config.
+- [ ] Token file path is absolute and points to a regular file.
 - [ ] Bootstrap config used `dmPolicy: "pairing"`.
-- [ ] First DM pairing was approved with `openclaw pairing approve telegram <CODE>`.
+- [ ] Pairing commands use a `PAIRING_CODE` variable, not a literal angle-bracket placeholder.
+- [ ] First DM pairing was approved with `openclaw pairing approve telegram "$PAIRING_CODE"`.
 - [ ] Hardened config uses `dmPolicy: "allowlist"` and numeric `allowFrom`.
+- [ ] Hardened allowlist uses the numeric Telegram user ID.
 - [ ] Groups are disabled for the first build.
 - [ ] `configWrites` is `false`.
 - [ ] `openclaw channels --channel telegram` or `openclaw channels` was checked.
