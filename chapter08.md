@@ -302,6 +302,182 @@ For a private DM-only setup, `chat.id` is normally the same value and can be rec
 
 Do not use `@username` as the durable allowlist entry.
 
+### Create a Local Telegram Evidence Log
+
+Create a local setup log before clearing updates or enabling OpenClaw polling.
+
+This log helps Section 10 hardening even if Telegram updates are later cleared. It is local to the OpenClaw runtime user, does not store the bot token, should be mode `600`, and is an install/debug artifact. Do not commit it to Git.
+
+```bash
+TELEGRAM_BOT_TOKEN="$(cat ~/.openclaw/secrets/telegram-bot-token)"
+TELEGRAM_LOG="$HOME/.openclaw/telegramlog.md"
+
+mkdir -p "$HOME/.openclaw"
+touch "$TELEGRAM_LOG"
+chmod 600 "$TELEGRAM_LOG"
+
+python3 - <<'PY'
+from pathlib import Path
+
+log_path = Path.home() / ".openclaw" / "telegramlog.md"
+if not log_path.exists() or log_path.stat().st_size == 0:
+    log_path.write_text("# Telegram Setup Log\n\n", encoding="utf-8")
+PY
+
+{
+  echo
+  echo "## Telegram setup log update"
+  echo
+  echo "Timestamp: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+  echo
+  echo "Token source: ~/.openclaw/secrets/telegram-bot-token"
+  echo
+  echo "Token value: not logged"
+  echo
+} >> "$TELEGRAM_LOG"
+
+curl -fsS "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getMe" \
+| python3 -c '
+import json
+import sys
+from pathlib import Path
+
+data = json.load(sys.stdin)
+result = data.get("result", {}) or {}
+
+ok = data.get("ok")
+bot_id = result.get("id")
+bot_username = result.get("username")
+bot_first_name = result.get("first_name")
+
+log_path = Path.home() / ".openclaw" / "telegramlog.md"
+
+with log_path.open("a", encoding="utf-8") as f:
+    f.write("\n### getMe\n\n")
+    f.write(f"ok: {ok}\n\n")
+    f.write(f"bot.id: {bot_id}\n\n")
+    f.write(f"bot.username: {bot_username}\n\n")
+    f.write(f"bot.first_name: {bot_first_name}\n\n")
+
+print("Logged getMe bot identity to ~/.openclaw/telegramlog.md")
+'
+```
+
+Send these messages to the bot in Telegram:
+
+```text
+/start
+hello openclaw test
+```
+
+Then log and summarize `getUpdates`:
+
+```bash
+TELEGRAM_BOT_TOKEN="$(cat ~/.openclaw/secrets/telegram-bot-token)"
+TELEGRAM_LOG="$HOME/.openclaw/telegramlog.md"
+
+curl -fsS "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getUpdates" \
+| python3 -c '
+import json
+import sys
+from pathlib import Path
+
+data = json.load(sys.stdin)
+updates = data.get("result", []) or []
+log_path = Path.home() / ".openclaw" / "telegramlog.md"
+
+users = {}
+
+with log_path.open("a", encoding="utf-8") as f:
+    f.write("\n### getUpdates summary\n\n")
+    ok = data.get("ok")
+    f.write(f"ok: {ok}\n\n")
+    f.write(f"update.count: {len(updates)}\n\n")
+
+    for update in updates:
+        msg = update.get("message") or update.get("edited_message") or {}
+        user = msg.get("from") or {}
+        chat = msg.get("chat") or {}
+        text = msg.get("text", "")
+
+        update_id = update.get("update_id")
+        user_id = user.get("id")
+        username = user.get("username")
+        first_name = user.get("first_name")
+        is_bot = user.get("is_bot")
+        chat_id = chat.get("id")
+        chat_type = chat.get("type")
+
+        f.write("---\n\n")
+        f.write(f"update.id: {update_id}\n\n")
+        f.write(f"from.id: {user_id}\n\n")
+        f.write(f"from.username: {username}\n\n")
+        f.write(f"from.first_name: {first_name}\n\n")
+        f.write(f"from.is_bot: {is_bot}\n\n")
+        f.write(f"chat.id: {chat_id}\n\n")
+        f.write(f"chat.type: {chat_type}\n\n")
+        f.write(f"text: {text}\n\n")
+
+        if user_id is None:
+            continue
+        if is_bot is True:
+            continue
+        if chat_type != "private":
+            continue
+
+        user_id = str(user_id)
+        users.setdefault(user_id, {
+            "username": username,
+            "first_name": first_name,
+            "chat_ids": set(),
+            "update_ids": [],
+            "texts": []
+        })
+        users[user_id]["chat_ids"].add(str(chat_id))
+        users[user_id]["update_ids"].append(update_id)
+        if text:
+            users[user_id]["texts"].append(text)
+
+    f.write("\n### Operator ID detection\n\n")
+
+    if not users:
+        f.write("result: no human private-message Telegram user IDs found\n\n")
+    elif len(users) == 1:
+        user_id, details = next(iter(users.items()))
+        f.write("result: exactly one human private-message Telegram user ID found\n\n")
+        f.write(f"selected.from.id: {user_id}\n\n")
+        f.write(f"selected.from.username: {details.get('username')}\n\n")
+        f.write(f"selected.from.first_name: {details.get('first_name')}\n\n")
+        f.write(f"selected.chat.ids: {sorted(details.get('chat_ids', []))}\n\n")
+        f.write(f"selected.update.ids: {details.get('update_ids')}\n\n")
+    else:
+        f.write("result: more than one human private-message Telegram user ID found\n\n")
+        for user_id, details in sorted(users.items()):
+            f.write("---\n\n")
+            f.write(f"candidate.from.id: {user_id}\n\n")
+            f.write(f"candidate.from.username: {details.get('username')}\n\n")
+            f.write(f"candidate.from.first_name: {details.get('first_name')}\n\n")
+            f.write(f"candidate.chat.ids: {sorted(details.get('chat_ids', []))}\n\n")
+            f.write(f"candidate.update.ids: {details.get('update_ids')}\n\n")
+
+print("Logged getUpdates summary to ~/.openclaw/telegramlog.md")
+
+if not users:
+    print("No human private-message Telegram user IDs found.")
+elif len(users) == 1:
+    user_id, details = next(iter(users.items()))
+    print(f"Detected one candidate operator user ID: {user_id}")
+    print(f"Username: {details.get('username')}")
+    print(f"Private chat IDs: {sorted(details.get('chat_ids', []))}")
+else:
+    print("More than one candidate operator user ID found. Review ~/.openclaw/telegramlog.md before allowlisting.")
+'
+```
+
+This log is the durable setup evidence for the Telegram operator ID. Section 10 can use it even if pending Telegram updates are later cleared.
+
+If the log shows more than one candidate `from.id`, do not guess. Investigate which Telegram account is the intended operator before enabling `dmPolicy: "allowlist"`.
+
 ### If getUpdates Returns an Empty Result
 
 If `getUpdates` returns:
@@ -525,99 +701,89 @@ Do not approve unknown or unexpected pairings.
 
 After the first operator's numeric Telegram user ID is known, switch from pairing to allowlist.
 
-Run this extraction before clearing manual test updates. If the updates have already been cleared, send a new test DM to the bot while the OpenClaw gateway is stopped, then rerun the extraction.
+Section 10 must be safe to paste into an interactive SSH shell. The shell snippets below do not use shell-level `exit`; if detection is unsafe, they leave `TELEGRAM_USER_ID` empty and skip the config merge.
 
-This command derives `TELEGRAM_USER_ID` automatically only when exactly one human private-message sender is present in pending Telegram updates:
+### Detect the Operator ID from the Local Telegram Log
+
+Prefer the local evidence log from Section 6. It still works after pending Telegram updates have been consumed or cleared.
 
 ```bash
-TELEGRAM_BOT_TOKEN="$(cat ~/.openclaw/secrets/telegram-bot-token)"
+TELEGRAM_LOG="$HOME/.openclaw/telegramlog.md"
 
-TELEGRAM_USER_ID="$(curl -fsS "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getUpdates" \
-| python3 -c '
-import json
+TELEGRAM_USER_ID="$(python3 - <<'PY'
+from pathlib import Path
+import re
 import sys
 
-data = json.load(sys.stdin)
-users = {}
+log_path = Path.home() / ".openclaw" / "telegramlog.md"
 
-for update in data.get("result", []):
-    msg = update.get("message") or update.get("edited_message") or {}
-    user = msg.get("from") or {}
-    chat = msg.get("chat") or {}
-    text = msg.get("text", "")
-
-    user_id = user.get("id")
-    is_bot = user.get("is_bot")
-    chat_type = chat.get("type")
-
-    if user_id is None:
-        continue
-    if is_bot is True:
-        continue
-    if chat_type != "private":
-        continue
-
-    user_id = str(user_id)
-    users.setdefault(user_id, {
-        "username": user.get("username"),
-        "first_name": user.get("first_name"),
-        "chat_ids": set(),
-        "update_ids": [],
-        "texts": []
-    })
-
-    users[user_id]["chat_ids"].add(str(chat.get("id")))
-    users[user_id]["update_ids"].append(update.get("update_id"))
-    if text:
-        users[user_id]["texts"].append(text)
-
-if not users:
-    print("No human private-message Telegram user IDs found in pending updates.", file=sys.stderr)
-    print("Stop OpenClaw gateway if it is polling, send /start and a test DM to the bot, then rerun this step.", file=sys.stderr)
+if not log_path.exists():
+    print("Telegram log not found: ~/.openclaw/telegramlog.md", file=sys.stderr)
     sys.exit(1)
 
-if len(users) > 1:
-    print("More than one Telegram user ID found. Do not auto-allowlist.", file=sys.stderr)
-    print("Review these candidates and choose the intended operator manually:", file=sys.stderr)
-    for user_id, details in sorted(users.items()):
-        print("---", file=sys.stderr)
-        print(f"from.id: {user_id}", file=sys.stderr)
-        print(f"from.username: {details.get('username')}", file=sys.stderr)
-        print(f"from.first_name: {details.get('first_name')}", file=sys.stderr)
-        print(f"chat.ids: {sorted(details.get('chat_ids', []))}", file=sys.stderr)
-        print(f"update.ids: {details.get('update_ids')}", file=sys.stderr)
-        sample_texts = details.get("texts", [])[-3:]
-        print(f"recent.texts: {sample_texts}", file=sys.stderr)
-    sys.exit(2)
+text = log_path.read_text(encoding="utf-8", errors="replace")
 
-user_id, details = next(iter(users.items()))
-print(f"Using Telegram user ID from private DM: {user_id}", file=sys.stderr)
-print(f"Telegram username: {details.get('username')}", file=sys.stderr)
-print(f"Private chat IDs: {sorted(details.get('chat_ids', []))}", file=sys.stderr)
-print(user_id)
-')"
+selected = re.findall(r"^selected\.from\.id:\s*([0-9]+)\s*$", text, flags=re.MULTILINE)
+candidates = re.findall(r"^(?:candidate\.from\.id|from\.id):\s*([0-9]+)\s*$", text, flags=re.MULTILINE)
 
-if [ -z "$TELEGRAM_USER_ID" ]; then
-  echo "TELEGRAM_USER_ID was not detected"
-  exit 1
+ids = selected if selected else candidates
+unique_ids = sorted(set(ids))
+
+if len(unique_ids) == 1:
+    print(unique_ids[0])
+    sys.exit(0)
+
+if len(unique_ids) == 0:
+    print("No numeric Telegram user ID found in ~/.openclaw/telegramlog.md", file=sys.stderr)
+    sys.exit(1)
+
+print("Multiple Telegram user IDs found in ~/.openclaw/telegramlog.md:", file=sys.stderr)
+for value in unique_ids:
+    print(f"- {value}", file=sys.stderr)
+print("Review the log and choose the intended operator manually.", file=sys.stderr)
+sys.exit(2)
+PY
+)"
+
+if [ -n "$TELEGRAM_USER_ID" ]; then
+  echo "Detected TELEGRAM_USER_ID from telegramlog.md: $TELEGRAM_USER_ID"
+else
+  echo "TELEGRAM_USER_ID was not detected from telegramlog.md."
+  echo "Review ~/.openclaw/telegramlog.md or refresh it from getUpdates before hardening."
 fi
-
-echo "TELEGRAM_USER_ID=$TELEGRAM_USER_ID"
 ```
 
-This automatic extraction is safe only when exactly one human private-message sender is present in pending Telegram updates.
+### Refresh the Telegram Log if Needed
 
-If more than one user ID is found, the script stops and prints the candidates. Do not guess. Investigate which Telegram account is the intended OpenClaw operator before setting `allowFrom`.
+Use this only if `telegramlog.md` is missing, empty, or stale.
 
-If no user ID is found, OpenClaw or another process may already have consumed the updates. Stop the OpenClaw gateway, send a fresh `/start` and test DM to the bot, and rerun the extraction step.
-
-Manual fallback, only after reviewing `getUpdates` output:
+Stop OpenClaw gateway first if it may already be polling, send a fresh `/start` and test DM to the bot, then rerun the Section 6 getUpdates logging command.
 
 ```bash
-TELEGRAM_USER_ID="replace-with-reviewed-numeric-from.id"
+openclaw gateway stop 2>/dev/null || true
+
+echo "Send these messages to the Telegram bot now:"
+echo "/start"
+echo "hello openclaw test"
+
+echo "Then rerun the Section 6 getUpdates logging command."
 ```
 
-Use the manual fallback only after reviewing `getUpdates` output. The value must be the numeric `message.from.id`, not the bot ID from `getMe`, not `@username`, and not a group chat ID.
+### Manual Fallback After Review
+
+Use the manual fallback only after reviewing `~/.openclaw/telegramlog.md` or raw `getUpdates` output.
+
+```bash
+TELEGRAM_USER_ID="replace-with-reviewed-numeric-from-id"
+```
+
+The value must be the numeric `message.from.id`.
+
+Do not use:
+
+- the bot ID from `getMe`
+- `@username`
+- a group chat ID
 
 Use this end-state for the first build:
 
@@ -655,12 +821,23 @@ Replace:
 Preferred allowlist merge helper. This assumes `TELEGRAM_USER_ID` was set by the extraction step above:
 
 ```bash
-if ! printf '%s' "$TELEGRAM_USER_ID" | grep -Eq '^[0-9]+$'; then
-  echo "TELEGRAM_USER_ID must be numeric"
-  exit 1
+if [ -z "$TELEGRAM_USER_ID" ]; then
+  echo "TELEGRAM_USER_ID is empty. Not modifying openclaw.json."
+  echo "Review ~/.openclaw/telegramlog.md, then rerun this section."
+else
+  if printf '%s' "$TELEGRAM_USER_ID" | grep -Eq '^[0-9]+$'; then
+    echo "TELEGRAM_USER_ID is numeric: $TELEGRAM_USER_ID"
+  else
+    echo "TELEGRAM_USER_ID must be numeric. Not modifying openclaw.json."
+    TELEGRAM_USER_ID=""
+  fi
 fi
 
-python3 - <<PY
+if [ -n "$TELEGRAM_USER_ID" ]; then
+  cp ~/.openclaw/openclaw.json ~/.openclaw/openclaw.json.bak.$(date +%Y%m%d-%H%M%S)
+  chmod 600 ~/.openclaw/openclaw.json*
+
+  python3 - <<PY
 import json
 from pathlib import Path
 
@@ -694,16 +871,15 @@ data["channels"]["telegram"] = {
 config_path.write_text(json.dumps(data, indent=2) + "\n")
 PY
 
-python3 -m json.tool ~/.openclaw/openclaw.json >/dev/null && echo "openclaw.json valid"
-```
+  python3 -m json.tool ~/.openclaw/openclaw.json >/dev/null && echo "openclaw.json valid"
 
-Restart and diagnose:
-
-```bash
-openclaw gateway restart
-sleep 3
-openclaw doctor
-openclaw channels --channel telegram 2>/dev/null || openclaw channels
+  openclaw gateway restart
+  sleep 3
+  openclaw doctor
+  openclaw channels --channel telegram 2>/dev/null || openclaw channels
+else
+  echo "Skipped hardened allowlist merge because TELEGRAM_USER_ID is not safely detected."
+fi
 ```
 
 ## 11. Do Not Configure Groups Yet
@@ -768,6 +944,76 @@ no Telegram webhook is active
 ```
 
 ## 13. Troubleshooting
+
+### Running Section 10 Closed My SSH Session
+
+Cause:
+
+- An older version of this guide used shell-level `exit` in a copy/paste block.
+- Running `exit` in an interactive SSH shell closes the shell and drops the session.
+
+Fix:
+
+- Reconnect over SSH.
+- Activate the virtual environment again if needed.
+- Pull the updated guide.
+- Use the revised Section 10, which does not use shell-level `exit`.
+
+### `telegramlog.md` Does Not Exist
+
+Cause:
+
+- Section 6 log creation was not run.
+- The setup was started before this chapter introduced the log file.
+
+Fix:
+
+```bash
+mkdir -p ~/.openclaw
+touch ~/.openclaw/telegramlog.md
+chmod 600 ~/.openclaw/telegramlog.md
+```
+
+Then stop OpenClaw polling, send a fresh Telegram DM to the bot, and rerun the Section 6 getUpdates logging command.
+
+### `telegramlog.md` Has No User ID
+
+Cause:
+
+- No private DM was sent to the bot.
+- The message was sent to BotFather instead of the bot.
+- OpenClaw was already polling and consumed the update before manual logging.
+- Updates were cleared before logging.
+
+Fix:
+
+```bash
+openclaw gateway stop 2>/dev/null || true
+```
+
+Then send:
+
+```text
+/start
+hello openclaw test
+```
+
+Then rerun the Section 6 getUpdates logging command.
+
+### `telegramlog.md` Has Multiple User IDs
+
+Cause:
+
+- More than one Telegram user has messaged the bot.
+- The bot was reused or tested by multiple accounts.
+
+Fix:
+
+- Do not auto-allowlist.
+- Review `~/.openclaw/telegramlog.md`.
+- Identify the intended operator.
+- Set `TELEGRAM_USER_ID` manually using the numeric `message.from.id`.
+- Do not use `@username`, bot ID, or group chat ID.
 
 If `getUpdates` reports a webhook conflict, delete the webhook:
 
@@ -911,6 +1157,11 @@ Telegram numeric user ID from message.from.id:
 Telegram private chat ID from message.chat.id:
 Telegram token location: ~/.openclaw/secrets/telegram-bot-token
 Token file mode:
+Telegram setup log path: ~/.openclaw/telegramlog.md
+Telegram setup log mode:
+Operator ID source: telegramlog.md / manual review / live getUpdates
+Operator ID detection result: exactly one / none / multiple
+Shell-level exit avoided in Section 10: yes/no
 Last manual update ID cleared:
 Webhook active: yes/no
 Polling mode: yes/no
@@ -939,7 +1190,10 @@ Notes:
 - [ ] No webhook is active for polling-first setup.
 - [ ] Operator sent `/start` and a test message to the bot.
 - [ ] Manual `getUpdates` was used only before enabling OpenClaw polling or while gateway was stopped.
+- [ ] `~/.openclaw/telegramlog.md` was created with mode `600`.
+- [ ] The Telegram setup log does not contain the bot token.
 - [ ] Numeric Telegram user ID was extracted from `message.from.id`.
+- [ ] The numeric operator ID was derived from `message.from.id`.
 - [ ] Private chat ID was extracted from `message.chat.id`.
 - [ ] `@username` was not used as durable allowlist entry.
 - [ ] Manual test updates were cleared with `getUpdates` offset after recording the operator ID.
@@ -948,6 +1202,9 @@ Notes:
 - [ ] Bootstrap config used `dmPolicy: "pairing"`.
 - [ ] Pairing commands use a `PAIRING_CODE` variable, not a literal angle-bracket placeholder.
 - [ ] First DM pairing was approved with `openclaw pairing approve telegram "$PAIRING_CODE"`.
+- [ ] Section 10 did not use shell-level `exit`.
+- [ ] If multiple Telegram user IDs were found, allowlist hardening was paused for human review.
+- [ ] Pairing approval uses `PAIRING_CODE`, not a literal angle-bracket placeholder.
 - [ ] Hardened config uses `dmPolicy: "allowlist"` and numeric `allowFrom`.
 - [ ] Hardened allowlist uses the numeric Telegram user ID.
 - [ ] Groups are disabled for the first build.
