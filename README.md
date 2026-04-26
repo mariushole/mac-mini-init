@@ -17,7 +17,7 @@ These are not the same.
 
 You can move the Mac mini to its permanent cabled/headless location after Chapter 04 is complete and verified.
 
-Chapter 05 makes local inference ready. Chapter 06 makes OpenClaw installed and doctor-repaired. Chapter 07 exposes the local MLX-LM model as a loopback API provider for OpenClaw.
+Chapter 05 makes local inference ready. Chapter 06 makes OpenClaw installed and doctor-repaired. Chapter 07 exposes the local MLX-LM model as a loopback API provider for OpenClaw. Chapter 08 documents model tuning and the local LLM proxy posture before channels are enabled.
 
 OpenClaw itself should not be considered fully appliance-style/headless after reboot until persistent gateway behavior has been selected, configured, and tested in the later operations chapters.
 
@@ -36,6 +36,8 @@ OpenClaw itself should not be considered fully appliance-style/headless after re
 | SSH tunnel test | No | Yes | Client workstation tunnels to Mac loopback gateway. |
 | Default user LaunchAgent install | Sometimes yes | Sometimes no | May fail over pure SSH with launchctl error 125 unless the runtime user has a GUI login session. |
 | Chapter 07 - Enable Local MLX-LM API Provider for OpenClaw | Sometimes | Mostly yes | Creates the local loopback MLX-LM API endpoint, optional user LaunchAgent, and OpenClaw local provider path. |
+| Chapter 08 - Prepare, Tune, and Proxy the Local LLM | No | Yes | Verifies the local model, records conservative tuning choices, and checks the loopback LLM proxy before channels are enabled. |
+| Chapter 09 - Telegram Bot Integration | No | Yes | Adds the first DM-only Telegram channel path with polling, token-file storage, and numeric allowlist hardening. |
 | Custom LaunchDaemon/headless supervisor | No, after SSH works | Yes | Advanced only; not the default OpenClaw-shipped path. |
 
 ## When Can I Remove Keyboard, Mouse, and Monitor?
@@ -140,8 +142,8 @@ The local model runtime is a dependency for a clean OpenClaw operating setup, ev
 | [05 - Install Local LLM Runtime for Headless OpenClaw](chapter05.md) | Drafted | Install and test the local model runtime before OpenClaw provider onboarding, using MLX-LM and Qwen 3.5 9B as the April 2026 baseline for a Mac mini M4 with 16 GB unified memory. |
 | [06 - Install and Bootstrap OpenClaw](chapter06.md) | Drafted | Install OpenClaw as the non-admin runtime user, repair first-run doctor findings, set local/loopback/token gateway baseline, and verify local OpenClaw runtime state. |
 | [07 - Enable Local MLX-LM API Provider for OpenClaw](chapter07.md) | Drafted | Expose the local MLX-LM model through a loopback OpenAI-compatible API endpoint and configure OpenClaw to use it. |
-| [08 - Telegram Bot Integration](chapter08.md) | Started | Create a Telegram bot, store its token securely, verify Bot API access, and prepare OpenClaw channel wiring without public exposure. |
-| [09 - Backup, Updates, and Recovery](chapter09.md) | Scaffold | Back up config, document restore steps, and maintain the host over time. |
+| [08 - Prepare, Tune, and Proxy the Local LLM](chapter08.md) | Drafted | Verify the local model, record conservative tuning choices, and validate the loopback LLM proxy before channels are enabled. |
+| [09 - Telegram Bot Integration](chapter09.md) | Started | Create a Telegram bot, store its token securely, verify Bot API access, and prepare OpenClaw channel wiring without public exposure. |
 | [99 - Deferred Advanced Operations](chapter99.md) | Parking lot | Cloud provider secrets, device pairing, channels, home network access, broad audits, LaunchAgent policy, reboot checks, and update procedures. |
 
 ## Security Principles
@@ -174,6 +176,6 @@ Replace these examples with your own values as you work through the chapters:
 - [ ] Chapter 05: Install and test the local LLM runtime.
 - [ ] Chapter 06: Bootstrap OpenClaw install and doctor.
 - [ ] Chapter 07: Enable the local MLX-LM API provider for OpenClaw.
-- [ ] Chapter 08: Start Telegram bot integration.
-- [ ] Chapter 09: Document backup and recovery.
+- [ ] Chapter 08: Prepare, tune, and verify the local LLM proxy.
+- [ ] Chapter 09: Start Telegram bot integration.
 - [ ] Chapter 99: Review deferred advanced operations when needed.

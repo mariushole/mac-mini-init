@@ -10,7 +10,21 @@ Use this chapter after the local path is working:
 Chapter 05: local model works
 Chapter 06: OpenClaw is installed and doctor-repaired
 Chapter 07: local MLX-LM API endpoint is available to OpenClaw
+Chapter 08: model tuning and local proxy posture are documented
+Chapter 09: first Telegram channel path is working, if used
 ```
+
+## Backup, Updates, and Recovery
+
+This section preserves the former Chapter 09 scaffold until a full maintenance chapter is written.
+
+Planned scope:
+
+- Back up OpenClaw configuration.
+- Document restore steps.
+- Define update cadence.
+- Test recovery from a clean machine.
+- Keep a maintenance log.
 
 ## Cloud Provider Secrets
 
@@ -59,13 +73,15 @@ openclaw devices list
 Approve only if expected and trusted:
 
 ```bash
-openclaw devices approve <request-id>
+REQUEST_ID="replace-with-current-request-id"
+openclaw devices approve "$REQUEST_ID"
 ```
 
 Reject if unknown:
 
 ```bash
-openclaw devices reject <request-id>
+REQUEST_ID="replace-with-current-request-id"
+openclaw devices reject "$REQUEST_ID"
 ```
 
 Re-run `openclaw devices list` immediately before approval because retrying clients may create a new request ID.
@@ -214,5 +230,5 @@ Do not blindly update MLX-LM while the gateway/provider is working. If you updat
 
 ---
 
-Previous: [Chapter 09 - Backup, Updates, and Recovery](chapter09.md)
+Previous: [Chapter 09 - Telegram Bot Integration](chapter09.md)
 [Back to main guide](README.md)
