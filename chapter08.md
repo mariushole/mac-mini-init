@@ -525,13 +525,99 @@ Do not approve unknown or unexpected pairings.
 
 After the first operator's numeric Telegram user ID is known, switch from pairing to allowlist.
 
-Example only:
+Run this extraction before clearing manual test updates. If the updates have already been cleared, send a new test DM to the bot while the OpenClaw gateway is stopped, then rerun the extraction.
+
+This command derives `TELEGRAM_USER_ID` automatically only when exactly one human private-message sender is present in pending Telegram updates:
 
 ```bash
-TELEGRAM_USER_ID="94777959"
+TELEGRAM_BOT_TOKEN="$(cat ~/.openclaw/secrets/telegram-bot-token)"
+
+TELEGRAM_USER_ID="$(curl -fsS "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getUpdates" \
+| python3 -c '
+import json
+import sys
+
+data = json.load(sys.stdin)
+users = {}
+
+for update in data.get("result", []):
+    msg = update.get("message") or update.get("edited_message") or {}
+    user = msg.get("from") or {}
+    chat = msg.get("chat") or {}
+    text = msg.get("text", "")
+
+    user_id = user.get("id")
+    is_bot = user.get("is_bot")
+    chat_type = chat.get("type")
+
+    if user_id is None:
+        continue
+    if is_bot is True:
+        continue
+    if chat_type != "private":
+        continue
+
+    user_id = str(user_id)
+    users.setdefault(user_id, {
+        "username": user.get("username"),
+        "first_name": user.get("first_name"),
+        "chat_ids": set(),
+        "update_ids": [],
+        "texts": []
+    })
+
+    users[user_id]["chat_ids"].add(str(chat.get("id")))
+    users[user_id]["update_ids"].append(update.get("update_id"))
+    if text:
+        users[user_id]["texts"].append(text)
+
+if not users:
+    print("No human private-message Telegram user IDs found in pending updates.", file=sys.stderr)
+    print("Stop OpenClaw gateway if it is polling, send /start and a test DM to the bot, then rerun this step.", file=sys.stderr)
+    sys.exit(1)
+
+if len(users) > 1:
+    print("More than one Telegram user ID found. Do not auto-allowlist.", file=sys.stderr)
+    print("Review these candidates and choose the intended operator manually:", file=sys.stderr)
+    for user_id, details in sorted(users.items()):
+        print("---", file=sys.stderr)
+        print(f"from.id: {user_id}", file=sys.stderr)
+        print(f"from.username: {details.get('username')}", file=sys.stderr)
+        print(f"from.first_name: {details.get('first_name')}", file=sys.stderr)
+        print(f"chat.ids: {sorted(details.get('chat_ids', []))}", file=sys.stderr)
+        print(f"update.ids: {details.get('update_ids')}", file=sys.stderr)
+        sample_texts = details.get("texts", [])[-3:]
+        print(f"recent.texts: {sample_texts}", file=sys.stderr)
+    sys.exit(2)
+
+user_id, details = next(iter(users.items()))
+print(f"Using Telegram user ID from private DM: {user_id}", file=sys.stderr)
+print(f"Telegram username: {details.get('username')}", file=sys.stderr)
+print(f"Private chat IDs: {sorted(details.get('chat_ids', []))}", file=sys.stderr)
+print(user_id)
+')"
+
+if [ -z "$TELEGRAM_USER_ID" ]; then
+  echo "TELEGRAM_USER_ID was not detected"
+  exit 1
+fi
+
+echo "TELEGRAM_USER_ID=$TELEGRAM_USER_ID"
 ```
 
-Replace the example value with the numeric value from `message.from.id`. Do not use `@username`. `allowFrom` must contain numeric Telegram user IDs as strings.
+This automatic extraction is safe only when exactly one human private-message sender is present in pending Telegram updates.
+
+If more than one user ID is found, the script stops and prints the candidates. Do not guess. Investigate which Telegram account is the intended OpenClaw operator before setting `allowFrom`.
+
+If no user ID is found, OpenClaw or another process may already have consumed the updates. Stop the OpenClaw gateway, send a fresh `/start` and test DM to the bot, and rerun the extraction step.
+
+Manual fallback, only after reviewing `getUpdates` output:
+
+```bash
+TELEGRAM_USER_ID="replace-with-reviewed-numeric-from.id"
+```
+
+Use the manual fallback only after reviewing `getUpdates` output. The value must be the numeric `message.from.id`, not the bot ID from `getMe`, not `@username`, and not a group chat ID.
 
 Use this end-state for the first build:
 
@@ -563,13 +649,16 @@ Replace:
 
 ```text
 /Users/openclaw -> the actual runtime user's home path
-123456789 -> your numeric Telegram user ID
+123456789 -> the numeric Telegram user ID from message.from.id
 ```
 
-Preferred allowlist merge helper:
+Preferred allowlist merge helper. This assumes `TELEGRAM_USER_ID` was set by the extraction step above:
 
 ```bash
-TELEGRAM_USER_ID="123456789"
+if ! printf '%s' "$TELEGRAM_USER_ID" | grep -Eq '^[0-9]+$'; then
+  echo "TELEGRAM_USER_ID must be numeric"
+  exit 1
+fi
 
 python3 - <<PY
 import json
